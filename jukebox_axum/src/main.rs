@@ -14,12 +14,8 @@ use axum::extract::State;
 use axum::http::Response;
 use axum::http::StatusCode;
 use axum::response::Redirect;
-use axum::{
-    response::IntoResponse,
-    routing::{get, post},
-    Router, Server,
-};
-use my_youtube_extractor::youtube_info::YtVideoPageInfo;
+use axum::{response::IntoResponse, routing::{get, post}, Router, Server, Json};
+use my_youtube_extractor::youtube_info::{YtAuthorInfo, YtVideoPageInfo};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -28,6 +24,7 @@ use std::time::Duration;
 use tokio::sync::{broadcast, Mutex};
 use tower::{ServiceBuilder, ServiceExt};
 use tower_http::services::ServeDir;
+use tracing::log;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
@@ -130,6 +127,7 @@ async fn main() {
         // .route("/search", post(search::search))
         // .route("/add_music", post(search::add_music))
         .route("/websocket", get(websocket::websocket_handler))
+        .route("/api/playlist", get(playlist))
         .with_state(app_state);
 
     let addr = SocketAddr::from_str("127.0.0.1:4000").unwrap();
@@ -149,4 +147,26 @@ async fn main_page(State(app_state): State<Arc<AppState>>) -> impl IntoResponse 
         searched_musics: vec![],
     };
     templates::HtmlTemplate(template)
+}
+
+async fn playlist(State(app_state): State<Arc<AppState>>) -> Json<Vec<YtVideoPageInfo>> {
+    log::info!("Get /api/playlist");
+    let playlist = app_state.list.lock().await;
+    let mut test = playlist.clone();
+    test.push(YtVideoPageInfo {
+        id: "test id".to_string(),
+        short_recap: "bonjour".to_string(),
+        title: "test title".to_string(),
+        thumbnail: "".to_string(),
+        author: YtAuthorInfo {
+            name: "".to_string(),
+            thumbnail: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b6/Image_created_with_a_mobile_phone.png/640px-Image_created_with_a_mobile_phone.png".to_string(),
+            tag: "".to_string(),
+        },
+        meta_description: "".to_string(),
+        duration: "".to_string(),
+        n_views: "".to_string(),
+        date: "".to_string(),
+    });
+    Json(test)
 }
