@@ -1,6 +1,12 @@
-# jukebox_rust
+# Jukebox Rust
 
 Trying to create a Jukebox using Rust (axum + yew)
+
+## Tools needed
+
+Add wasm32 target via `rustup target add wasm32-unknown-unknown`
+Install trunk via `cargo install --locked trunk` (cf. https://yew.rs/docs/getting-started/introduction)
+
 
 ## Run the server
 
