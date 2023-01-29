@@ -1,0 +1,19 @@
+[package]
+name = "jukebox_axum"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+my_youtube_extractor = { path = "../my_youtube_extractor" }
+serde = { version = "1.0", features = ["derive"] }
+axum = { version = "0.6", features = ["headers", "macros", "form", "query", "ws"] }
+tokio = { version = "1.0", features = ["full"] }
+futures = "0.3"
+askama = "0.11"
+serde_json = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tower-http = { version = "0.3", features = ["full"] }
+tower = "0.4"

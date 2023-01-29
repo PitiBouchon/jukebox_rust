@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+    <body>
+        <header>
+            <h1>Hello {{ username }} </h1>
+            <form action="/search" method="post" >
+                <input type="search" id="search" name="search" placeholder="Search..." minlength=2 required>
+            </form>
+        </header>
+        <script>
+            const websocket = new WebSocket("ws://localhost:4000/websocket");
+
+            websocket.onopen = function() {
+                console.log("connection opened");
+            }
+
+            websocket.onclose = function() {
+                console.log("connection closed");
+            }
+
+            websocket.onmessage = function(e) {
+                console.log("received message: " + e.data);
+                const command = e.data.slice(0, 3);
+                const data = e.data.slice(4);
+                switch (command) {
+                    case "rem": // remove
+                        const element = document.getElementById(data);
+                        if (element != null) {
+                            element.remove();
+                        }
+                        break;
+                    case "add": // add
+                        break;
+                    case "sch": // search
+                        break;
+                }
+            }
+
+            function removeMusic(video_id) {
+                console.log("Remove video: " + video_id);
+                websocket.send("remove " + video_id);
+            }
+
+        </script>
+        <main>
+            <h2>
+                Playlist :
+            </h2>
+            <ul>
+                {% for playlist_music in playlist %}
+                <li id={{ playlist_music.id }}>
+                    <div>
+                        <p>
+                            Title : {{ playlist_music.title }} ({{ playlist_music.id }})
+                        </p>
+                        <img src={{ playlist_music.thumbnail }} width=600 height=400>
+
+                        <button onclick="removeMusic('{{ playlist_music.id }}')")>
+                            Remove
+                        </button>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+            <h2>
+                Searched :
+            </h2>
+            <ul>
+                {% for music in searched_musics %}
+                <li>
+                    <div>
+                        <p>
+                            Title : {{ music.title }} ({{ music.id }})
+                        </p>
+                        <img src={{ music.thumbnail }} width=600 height=400>
+                        <form action="/add_music" method="post">
+                            <input type="hidden" name="video_serialized" value="#{{ music }}">
+                            <input type="submit" value="Add">
+                        </form>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        </main>
+    </body>
+</html>

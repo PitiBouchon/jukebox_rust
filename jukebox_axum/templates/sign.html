@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+    <body>
+        <h1>{{ text }} here :</h1>
+        <main>
+            <form action={{ action }} method="post">
+                <label for="username">Username : </label>
+                <input type="text" id="username" name="username" minlength=4 required>
+                <br>
+                <label for="password">Password : </label>
+                <input type="password" id="password" name="password" minlength=8 required>
+                <p>Attention ! Ce mot de passe n'est pas bien sécurisé</p>
+                <br>
+                <input type="submit" value="{{ text }}">
+            </form>
+        </main>
+    </body>
+</html>
