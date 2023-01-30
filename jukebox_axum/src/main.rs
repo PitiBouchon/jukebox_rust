@@ -8,12 +8,13 @@ mod templates;
 #[allow(unused_imports)]
 mod websocket;
 
+use std::convert::Infallible;
 use crate::templates::index::IndexTemplate;
 use axum::body::{boxed, Body};
 use axum::extract::State;
 use axum::http::Response;
 use axum::http::StatusCode;
-use axum::response::Redirect;
+use axum::response::{Redirect, Sse};
 use axum::{response::IntoResponse, routing::{get, post}, Router, Server, Json};
 use my_youtube_extractor::youtube_info::{YtAuthorInfo, YtVideoPageInfo};
 use std::net::SocketAddr;
@@ -21,6 +22,8 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
+use axum::response::sse::Event;
+use futures::{Stream, stream};
 use tokio::sync::{broadcast, Mutex};
 use tower::{ServiceBuilder, ServiceExt};
 use tower_http::services::ServeDir;
@@ -90,16 +93,16 @@ async fn main() {
 
     // Axum web server
     let app = Router::new()
-        .route("/", get(|| async { Redirect::permanent("/index") }))
+        // .route("/", get(|| async { Redirect::permanent("/index") }))
         // .route("/index", get(main_page))
         .fallback_service(get(|req| async move {
-            match ServeDir::new("../jukebox_yew/dist/").oneshot(req).await {
+            match ServeDir::new("jukebox_yew/dist/").oneshot(req).await {
                 Ok(res) => {
                     let status = res.status();
                     match status {
                         StatusCode::NOT_FOUND => {
                             let index_path =
-                                PathBuf::from("../jukebox_yew/dist/").join("index.html");
+                                PathBuf::from("jukebox_yew/dist/").join("index.html");
                             let index_content = match tokio::fs::read_to_string(index_path).await {
                                 Ok(index_content) => index_content,
                                 Err(_) => {
@@ -170,3 +173,4 @@ async fn playlist(State(app_state): State<Arc<AppState>>) -> Json<Vec<YtVideoPag
     });
     Json(test)
 }
+

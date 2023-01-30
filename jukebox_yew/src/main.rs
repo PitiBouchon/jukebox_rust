@@ -1,3 +1,4 @@
+use std::process::id;
 use futures::TryFutureExt;
 // use gloo::utils::document;
 use gloo_net::http::Request;
@@ -18,54 +19,132 @@ enum Route {
 fn switch(routes: Route) -> Html {
     log::info!("Routing");
     match routes {
-        Route::Home => html! { <Index /> },
+        Route::Home => html! { <PlayListHtml /> },
         Route::HelloServer => html! { <HelloServer /> },
+    }
+}
+
+pub struct PlayListHtml {
+    pub playlist: Vec<YtVideoPageInfo>
+}
+
+pub enum PlayListMsg {
+    Set(Vec<YtVideoPageInfo>),
+}
+
+impl Component for PlayListHtml {
+    type Message = PlayListMsg;
+    type Properties = ();
+
+    fn create(ctx: &Context<Self>) -> Self {
+        ctx.link().send_future(async {
+            log::info!("Trying to get something");
+            let resp = Request::get("/api/playlist").send().await.unwrap();
+            let playlist_res = serde_json::from_str::<Vec<YtVideoPageInfo>>(&resp.text().await.unwrap()).unwrap();
+            log::info!("Test: {:?}", playlist_res);
+            PlayListMsg::Set(playlist_res)
+        });
+        Self {
+            playlist: vec![],
+        }
+    }
+
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
+        match msg {
+            PlayListMsg::Set(v) => self.playlist = v,
+        }
+
+        true
+    }
+
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        html! {
+            <main>
+                <h2>{"Playlist :"}</h2>
+                <ul id="playlist">
+                    { self.playlist.iter().map(|v| html! { <VideoYt info={ v.clone() } /> }).collect::<Html>() }
+                </ul>
+                <h2>{ "Searched :" }</h2>
+                <ul id="search_list">
+                </ul>
+            </main>
+        }
     }
 }
 
 #[function_component(Index)]
 fn index() -> Html {
-    spawn_local(async move {
-        log::info!("Trying to get something");
-        let resp = Request::get("127.0.0.1:4000/api/playlist").send().await.unwrap();
-        let playlist_res = serde_json::from_str::<Vec<YtVideoPageInfo>>(&resp.text().await.unwrap()).unwrap();
-        let playlist_html: Vec<Html> = playlist_res
-            .into_iter()
-            .map(|video_info| {
-                html! {
-                <li id={ video_info.id.clone() }>
-                    <div>
-                        <p>
-                            { "Title : "}{ video_info.title } { video_info.id }
-                        </p>
-                        <img src={ video_info.thumbnail } width=600 height=400 />
-                        <button>
-                            { "Remove" }
-                        </button>
-                    </div>
-                </li>
-            }
-            })
-            .collect();
+    let data: UseStateHandle<Vec<YtVideoPageInfo>> = use_state(std::vec::Vec::new);
 
-        log::info!("Test: {:?}", playlist_html);
-    });
+    {
+        let data = data.clone();
+    //     use_effect(move || {
+            spawn_local(async move {
+                log::info!("Trying to get something");
+                let resp = Request::get("/api/playlist").send().await.unwrap();
+                let playlist_res = serde_json::from_str::<Vec<YtVideoPageInfo>>(&resp.text().await.unwrap()).unwrap();
+                log::info!("Test: {:?}", playlist_res);
+                data.set(playlist_res);
+            });
+    //
+    //         || {}
+    //     });
+    }
 
-    html! {
-        <main>
-            <h2>{"Playlist :"}</h2>
-            <ul id="playlist">
-            </ul>
-            <h2>{ "Searched :" }</h2>
-            <ul id="search_list">
-            </ul>
-        </main>
+    // log::info!("5");
+    if let Some(info) = data.get(0) {
+        html! {
+            <main>
+                <h2>{"Playlist :"}</h2>
+                <ul id="playlist">
+                    <VideoYt info={ info.clone() } />
+                </ul>
+                <h2>{ "Searched :" }</h2>
+                <ul id="search_list">
+                </ul>
+            </main>
+        }
+    }
+    else {
+        // log::info!("6");
+        html! {
+            <main>
+                <h2>{"Playlist :"}</h2>
+                <ul id="playlist">
+                </ul>
+                <h2>{ "Searched :" }</h2>
+                <ul id="search_list">
+                </ul>
+            </main>
+        }
     }
 }
 
 #[function_component(HelloServer)]
 fn hello_server() -> Html {
     html! { <main><h2>{"TEST"}</h2></main> }
+}
+
+#[derive(Properties, PartialEq)]
+pub struct VideoProps {
+    pub info: YtVideoPageInfo
+}
+
+#[function_component(VideoYt)]
+fn video(video_prop: &VideoProps) -> Html {
+    html! {
+        <li id={ video_prop.info.id.clone() }>
+            <div>
+                <p>
+                    { "Title : "}{ video_prop.info.title.clone() }{ video_prop.info.id.clone() }
+                </p>
+                <img src={ video_prop.info.thumbnail.clone() } width=600 height=400 />
+                <button>
+                    { "Remove" }
+                </button>
+            </div>
+        </li>
+    }
 }
 
 #[function_component(App)]
@@ -79,5 +158,6 @@ fn app() -> Html {
 
 fn main() {
     wasm_logger::init(wasm_logger::Config::new(log::Level::Trace));
+    log::info!("??");
     yew::Renderer::<App>::new().render();
 }
