@@ -1,6 +1,6 @@
 use std::process::id;
-use futures::TryFutureExt;
-// use gloo::utils::document;
+use futures::{SinkExt, StreamExt, TryFutureExt};
+use futures::stream::SplitSink;
 use gloo_net::http::Request;
 use gloo_net::websocket::{futures::WebSocket, Message};
 use my_youtube_extractor::youtube_info::YtVideoPageInfo;
@@ -25,7 +25,8 @@ fn switch(routes: Route) -> Html {
 }
 
 pub struct PlayListHtml {
-    pub playlist: Vec<YtVideoPageInfo>
+    pub playlist: Vec<YtVideoPageInfo>,
+    pub write_websocket: SplitSink<WebSocket, Message>,
 }
 
 pub enum PlayListMsg {
@@ -38,14 +39,25 @@ impl Component for PlayListHtml {
 
     fn create(ctx: &Context<Self>) -> Self {
         ctx.link().send_future(async {
-            log::info!("Trying to get something");
             let resp = Request::get("/api/playlist").send().await.unwrap();
             let playlist_res = serde_json::from_str::<Vec<YtVideoPageInfo>>(&resp.text().await.unwrap()).unwrap();
-            log::info!("Test: {:?}", playlist_res);
             PlayListMsg::Set(playlist_res)
         });
+
+        let ws = WebSocket::open("wss://127.0.0.1:4000/websocket").unwrap();
+        let (write, mut read) = ws.split();
+
+        spawn_local(async move {
+            while let Some(Ok(msg)) = read.next().await {
+                log::info!("1. {:?}", msg);
+                // ctx.link().send_message(PlayListMsg::Set(vec![]));
+            }
+            log::info!("WebSocket Closed")
+        });
+
         Self {
             playlist: vec![],
+            write_websocket: write,
         }
     }
 
@@ -165,6 +177,5 @@ fn app() -> Html {
 
 fn main() {
     wasm_logger::init(wasm_logger::Config::new(log::Level::Trace));
-    log::info!("??");
     yew::Renderer::<App>::new().render();
 }
