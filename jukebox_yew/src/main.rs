@@ -58,13 +58,13 @@ impl Component for PlayListHtml {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let cb: Callback<(), ()> = Callback::from(move |_| {
-            log::info!("SEARCH !");
+        let cb: Callback<SubmitEvent, ()> = Callback::from(move |ev| {
+            log::info!("SEARCH : {:?}", ev);
         });
         html! {
             <main>
             <iframe name="hiddenFrame" width="0" height="0" border="0" style="display: none;"></iframe>
-                <form onsubmit={Callback::from(|_| log::info!("SEARCH"))} target="hiddenFrame">
+                <form onsubmit={ cb } target="hiddenFrame">
                     <input type="search" id="search" name="search" placeholder="Search..." minlength=2/>
                 </form>
                 <h2>{"Playlist :"}</h2>
