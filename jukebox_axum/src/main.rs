@@ -155,22 +155,5 @@ async fn main_page(State(app_state): State<Arc<AppState>>) -> impl IntoResponse 
 async fn playlist(State(app_state): State<Arc<AppState>>) -> Json<Vec<YtVideoPageInfo>> {
     log::info!("Get /api/playlist");
     let playlist = app_state.list.lock().await;
-    let mut test = playlist.clone();
-    test.push(YtVideoPageInfo {
-        id: "test id".to_string(),
-        short_recap: "bonjour".to_string(),
-        title: "test title".to_string(),
-        thumbnail: "".to_string(),
-        author: YtAuthorInfo {
-            name: "".to_string(),
-            thumbnail: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b6/Image_created_with_a_mobile_phone.png/640px-Image_created_with_a_mobile_phone.png".to_string(),
-            tag: "".to_string(),
-        },
-        meta_description: "".to_string(),
-        duration: "".to_string(),
-        n_views: "".to_string(),
-        date: "".to_string(),
-    });
-    Json(test)
+    Json(playlist.clone())
 }
-

@@ -12,15 +12,15 @@ use yew_router::prelude::*;
 enum Route {
     #[at("/index")]
     Home,
-    #[at("/test")]
-    HelloServer,
+    // #[at("/test")]
+    // HelloServer,
 }
 
 fn switch(routes: Route) -> Html {
     log::info!("Routing");
     match routes {
         Route::Home => html! { <PlayListHtml /> },
-        Route::HelloServer => html! { <HelloServer /> },
+        // Route::HelloServer => html! { <HelloServer /> },
     }
 }
 
@@ -58,8 +58,15 @@ impl Component for PlayListHtml {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
+        let cb: Callback<(), ()> = Callback::from(move |_| {
+            log::info!("SEARCH !");
+        });
         html! {
             <main>
+            <iframe name="hiddenFrame" width="0" height="0" border="0" style="display: none;"></iframe>
+                <form onsubmit={Callback::from(|_| log::info!("SEARCH"))} target="hiddenFrame">
+                    <input type="search" id="search" name="search" placeholder="Search..." minlength=2/>
+                </form>
                 <h2>{"Playlist :"}</h2>
                 <ul id="playlist">
                     { self.playlist.iter().map(|v| html! { <VideoYt info={ v.clone() } /> }).collect::<Html>() }
@@ -72,58 +79,58 @@ impl Component for PlayListHtml {
     }
 }
 
-#[function_component(Index)]
-fn index() -> Html {
-    let data: UseStateHandle<Vec<YtVideoPageInfo>> = use_state(std::vec::Vec::new);
+// #[function_component(Index)]
+// fn index() -> Html {
+//     let data: UseStateHandle<Vec<YtVideoPageInfo>> = use_state(std::vec::Vec::new);
+//
+//     {
+//         let data = data.clone();
+//     //     use_effect(move || {
+//             spawn_local(async move {
+//                 log::info!("Trying to get something");
+//                 let resp = Request::get("/api/playlist").send().await.unwrap();
+//                 let playlist_res = serde_json::from_str::<Vec<YtVideoPageInfo>>(&resp.text().await.unwrap()).unwrap();
+//                 log::info!("Test: {:?}", playlist_res);
+//                 data.set(playlist_res);
+//             });
+//     //
+//     //         || {}
+//     //     });
+//     }
+//
+//     // log::info!("5");
+//     if let Some(info) = data.get(0) {
+//         html! {
+//             <main>
+//                 <h2>{"Playlist :"}</h2>
+//                 <ul id="playlist">
+//                     <VideoYt info={ info.clone() } />
+//                 </ul>
+//                 <h2>{ "Searched :" }</h2>
+//                 <ul id="search_list">
+//                 </ul>
+//             </main>
+//         }
+//     }
+//     else {
+//         // log::info!("6");
+//         html! {
+//             <main>
+//                 <h2>{"Playlist :"}</h2>
+//                 <ul id="playlist">
+//                 </ul>
+//                 <h2>{ "Searched :" }</h2>
+//                 <ul id="search_list">
+//                 </ul>
+//             </main>
+//         }
+//     }
+// }
 
-    {
-        let data = data.clone();
-    //     use_effect(move || {
-            spawn_local(async move {
-                log::info!("Trying to get something");
-                let resp = Request::get("/api/playlist").send().await.unwrap();
-                let playlist_res = serde_json::from_str::<Vec<YtVideoPageInfo>>(&resp.text().await.unwrap()).unwrap();
-                log::info!("Test: {:?}", playlist_res);
-                data.set(playlist_res);
-            });
-    //
-    //         || {}
-    //     });
-    }
-
-    // log::info!("5");
-    if let Some(info) = data.get(0) {
-        html! {
-            <main>
-                <h2>{"Playlist :"}</h2>
-                <ul id="playlist">
-                    <VideoYt info={ info.clone() } />
-                </ul>
-                <h2>{ "Searched :" }</h2>
-                <ul id="search_list">
-                </ul>
-            </main>
-        }
-    }
-    else {
-        // log::info!("6");
-        html! {
-            <main>
-                <h2>{"Playlist :"}</h2>
-                <ul id="playlist">
-                </ul>
-                <h2>{ "Searched :" }</h2>
-                <ul id="search_list">
-                </ul>
-            </main>
-        }
-    }
-}
-
-#[function_component(HelloServer)]
-fn hello_server() -> Html {
-    html! { <main><h2>{"TEST"}</h2></main> }
-}
+// #[function_component(HelloServer)]
+// fn hello_server() -> Html {
+//     html! { <main><h2>{"TEST"}</h2></main> }
+// }
 
 #[derive(Properties, PartialEq)]
 pub struct VideoProps {
