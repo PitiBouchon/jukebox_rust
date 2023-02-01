@@ -1,16 +1,17 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt::Formatter;
+use bincode::{Decode, Encode};
 use serde::ser::Error;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct YtAuthorInfo {
     pub name: String,
     pub thumbnail: String,
     pub tag: String, // Verified, Music...
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct YtVideoPageInfo {
     pub id: String,
     pub short_recap: String,

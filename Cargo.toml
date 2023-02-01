@@ -9,3 +9,13 @@ edition = "2021"
 members = [".", "jukebox_axum", "jukebox_yew", "my_youtube_extractor"]
 
 [dependencies]
+my_youtube_extractor = { path = "./my_youtube_extractor" }
+bincode = "2.0.0-rc.2"
+gloo-net = "0.2"
+axum = { version = "0.6", features = ["ws"], optional = true }
+#serde = { version = "1.0", features = ["derive"] }
+anyhow = "1.0.*"
+
+#[features]
+## Defines a feature named `webp` that does not enable any other features.
+#axum = ["dep:axum"]

@@ -34,7 +34,7 @@ use tracing_subscriber::util::SubscriberInitExt;
 #[derive(Debug)]
 pub struct AppState {
     pub list: Mutex<Vec<YtVideoPageInfo>>,
-    pub tx: broadcast::Sender<String>,
+    pub tx: broadcast::Sender<jukebox_rust::NetDataAxum>,
 }
 
 #[derive(Debug)]
@@ -60,7 +60,7 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let (tx, _rx) = broadcast::channel(100);
+    let (tx, _rx) = broadcast::channel(1000);
 
     // Channel between music player and axum web server
     let app_state = Arc::new(AppState {
