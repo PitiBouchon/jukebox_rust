@@ -35,6 +35,7 @@ pub struct PlayListHtml {
 pub enum PlayListMsg {
     RemoveSend(String),
     AddSend(YtVideoPageInfo),
+    AddGet(YtVideoPageInfo),
     SearchSend(String),
     SetGet(Vec<YtVideoPageInfo>),
     SearchGet(Vec<YtVideoPageInfo>),
@@ -81,7 +82,10 @@ impl Component for PlayListHtml {
                                         log::info!("Remove video");
                                         link.send_message(PlayListMsg::RemoveGet(video_id));
                                     },
-                                    NetDataAxum::Add(_video) => log::info!("Add video"),
+                                    NetDataAxum::Add(video) => {
+                                        log::info!("Add video");
+                                        link.send_message(PlayListMsg::AddGet(video));
+                                    },
                                     NetDataAxum::Search(search_videos) => {
                                         log::info!("Search videos received");
                                         link.send_message(PlayListMsg::SearchGet(search_videos));
@@ -144,6 +148,11 @@ impl Component for PlayListHtml {
                 }
                 false
             },
+            PlayListMsg::AddGet(video) => {
+                log::debug!("Add get");
+                self.playlist.push(video);
+                true
+            }
         }
     }
 

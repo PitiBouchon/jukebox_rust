@@ -1,8 +1,11 @@
 use std::sync::Arc;
+use anyhow::Result;
 use axum::extract::{State, WebSocketUpgrade};
 use axum::extract::ws::{Message, WebSocket};
 use axum::response::IntoResponse;
 use futures::{sink::SinkExt, stream::StreamExt};
+use futures::stream::SplitSink;
+use tokio::sync::mpsc;
 use tracing::log;
 use jukebox_rust::{NetDataAxum, NetDataYew};
 use my_youtube_extractor::search_videos;
@@ -19,6 +22,7 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
     let (mut sender, mut receiver) = stream.split();
 
     let mut rx = state.tx.subscribe();
+    let (tx_single, mut rx_single) = mpsc::channel(1000);
 
     let mut recv_user_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = receiver.next().await {
@@ -44,50 +48,60 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
                                 NetDataYew::Search(search_txt) => {
                                     log::debug!("Search videos: {search_txt}");
                                     let videos = search_videos(&search_txt).await;
-                                    state.tx.send(NetDataAxum::Search(videos)).unwrap();
+                                    tx_single.send(NetDataAxum::Search(videos)).await.unwrap();
                                 }
                             }
                         }
                         Err(err) => log::error!("Error decoding message: {err}"),
                     }
-                }
+                },
+                Message::Close(_) => return,
                 _ => log::error!("Received unwanted data: {msg:?}"),
             }
-            // if let Message::Text(data) = data {
-            //     log::debug!("Received something: {}", data);
-            //     if data.len() >= 3 {
-            //         match &data[..3] {
-            //             "tes" => log::info!("received a tes"),
-            //             _ => {
-            //                 tracing::info!("REMOVE SOMETHING: {:?}", data);
-            //                 let video_id = &data[7..];
-            //                 let mut playlist = state.list.lock().await;
-            //                 if let Some((index, _)) = playlist.iter().enumerate().find(|(_, m)| m.id == video_id) {
-            //                     playlist.remove(index);
-            //                     state.tx.send(format!("rem {video_id}")).unwrap();
-            //                 }
-            //             },
-            //         }
-            //     }
-            // }
         }
     });
 
     let mut broadcast_task = tokio::spawn(async move {
-        while let Ok(data) = rx.recv().await {
-            match data.encode_axum_message() {
-                Ok(msg) => {
-                    if sender.send(msg).await.is_err() {
-                        break;
+        loop {
+            tokio::select! {
+                data_res = rx.recv() => {
+                    if let Ok(data) = data_res {
+                        if let Err(err) = send_data_ws(&mut sender, data).await {
+                            log::error!("Error sending data: {err}");
+                            break;
+                        }
+                    }
+                },
+                data_opt = rx_single.recv() => {
+                    if let Some(data) = data_opt {
+                        if let Err(err) = send_data_ws(&mut sender, data).await {
+                            log::error!("Error sending data: {err}");
+                            break;
+                        }
                     }
                 }
-                Err(err) => log::error!("Error encoding data: {err}"),
             }
         }
+        // while let Ok(data) = rx.recv().await {
+        //     match data.encode_axum_message() {
+        //         Ok(msg) => {
+        //             if sender.send(msg).await.is_err() {
+        //                 break;
+        //             }
+        //         }
+        //         Err(err) => log::error!("Error encoding data: {err}"),
+        //     }
+        // }
     });
 
     tokio::select! {
         _ = (&mut broadcast_task) => recv_user_task.abort(),
         _ = (&mut recv_user_task) => broadcast_task.abort(),
     }
+}
+
+async fn send_data_ws(sender: &mut SplitSink<WebSocket, Message>,data: NetDataAxum) -> Result<()> {
+    let msg = data.encode_axum_message()?;
+    sender.send(msg).await?;
+    Ok(())
 }
