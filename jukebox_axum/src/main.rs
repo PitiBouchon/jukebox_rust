@@ -2,8 +2,6 @@
 #[allow(unused_imports)] // remove useless warning for developping
 
 #[allow(unused_imports)]
-mod search;
-#[allow(unused_imports)]
 mod templates;
 #[allow(unused_imports)]
 mod websocket;
