@@ -1,12 +1,13 @@
-use std::process::id;
-use futures::{SinkExt, StreamExt, TryFutureExt};
-use futures::stream::SplitSink;
+use futures::{SinkExt, StreamExt};
+use futures::channel::mpsc::Sender;
 use gloo_net::http::Request;
 use gloo_net::websocket::{futures::WebSocket, Message};
 use my_youtube_extractor::youtube_info::YtVideoPageInfo;
 use wasm_bindgen_futures::spawn_local;
+use web_sys::{HtmlInputElement, window};
 use yew::prelude::*;
 use yew_router::prelude::*;
+use wasm_bindgen::JsCast;
 
 #[derive(Clone, Routable, PartialEq)]
 enum Route {
@@ -26,11 +27,12 @@ fn switch(routes: Route) -> Html {
 
 pub struct PlayListHtml {
     pub playlist: Vec<YtVideoPageInfo>,
-    pub write_websocket: SplitSink<WebSocket, Message>,
+    pub send: Sender<String>,
 }
 
 pub enum PlayListMsg {
     Set(Vec<YtVideoPageInfo>),
+    Send(String),
 }
 
 impl Component for PlayListHtml {
@@ -44,39 +46,70 @@ impl Component for PlayListHtml {
             PlayListMsg::Set(playlist_res)
         });
 
-        let ws = WebSocket::open("wss://127.0.0.1:4000/websocket").unwrap();
-        let (write, mut read) = ws.split();
+        let ws = WebSocket::open("ws://127.0.0.1:4000/websocket").unwrap();
+
+        let (mut write_ws, mut read_ws) = ws.split();
+        let (in_tx, mut in_rx) = futures::channel::mpsc::channel::<String>(1000);
 
         spawn_local(async move {
-            while let Some(Ok(msg)) = read.next().await {
-                log::info!("1. {:?}", msg);
-                // ctx.link().send_message(PlayListMsg::Set(vec![]));
+            while let Some(s) = in_rx.next().await {
+                log::debug!("Send to WebSocket: {}", s);
+                write_ws.send(Message::Text(s)).await.unwrap();
+            }
+        });
+
+        let link = ctx.link().clone();
+
+        spawn_local(async move {
+            while let Some(Ok(msg)) = read_ws.next().await {
+                log::debug!("Receive from WebSocket: {:?}", msg);
+                link.send_message(PlayListMsg::Set(vec![]));
             }
             log::info!("WebSocket Closed")
         });
 
         Self {
             playlist: vec![],
-            write_websocket: write,
+            send: in_tx,
         }
     }
 
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
+    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
-            PlayListMsg::Set(v) => self.playlist = v,
+            PlayListMsg::Set(v) => {
+                self.playlist = v;
+                true
+            },
+            PlayListMsg::Send(data) => {
+                if let Err(err) = self.send.try_send(data) {
+                    log::error!("Can't send data to MPSC channel: {err}");
+                }
+                false
+            },
         }
-
-        true
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let cb: Callback<SubmitEvent, ()> = Callback::from(move |ev| {
-            log::info!("SEARCH : {:?}", ev);
+        let cb_send_msg = ctx.link().callback(PlayListMsg::Send);
+
+        let cb_search = Callback::from(move |ev: SubmitEvent| {
+            ev.prevent_default(); // Prevent default redirection
+
+            log::debug!("Search : {:?}", ev);
+            if let Some(window) = window() {
+                if let Some(document) = window.document() {
+                    if let Some(input_elm) = document.get_element_by_id("search") {
+                        if let Ok(search_elm) = input_elm.dyn_into::<HtmlInputElement>() {
+                            cb_send_msg.emit(search_elm.value());
+                        }
+                    }
+                }
+            }
         });
+
         html! {
             <main>
-            <iframe name="hiddenFrame" width="0" height="0" border="0" style="display: none;"></iframe>
-                <form onsubmit={ cb } target="hiddenFrame">
+                <form onsubmit={ cb_search }>
                     <input type="search" id="search" name="search" placeholder="Search..." minlength=2/>
                 </form>
                 <h2>{"Playlist :"}</h2>

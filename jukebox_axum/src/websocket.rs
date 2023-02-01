@@ -4,6 +4,7 @@ use axum::extract::ws::{Message, WebSocket};
 use axum::response::IntoResponse;
 use futures::{sink::SinkExt, stream::StreamExt};
 use futures::stream::iter;
+use tracing::log;
 use my_youtube_extractor::youtube_info::YtVideoPageInfo;
 use crate::AppState;
 
@@ -52,12 +53,20 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
     let mut recv_user_task = tokio::spawn(async move {
         while let Some(Ok(data)) = receiver.next().await {
             if let Message::Text(data) = data {
-                tracing::info!("REMOVE SOMETHING: {:?}", data);
-                let video_id = &data[7..];
-                let mut playlist = state.list.lock().await;
-                if let Some((index, _)) = playlist.iter().enumerate().find(|(_, m)| m.id == video_id) {
-                    playlist.remove(index);
-                    state.tx.send(format!("rem {video_id}")).unwrap();
+                log::debug!("Received something: {}", data);
+                if data.len() >= 3 {
+                    match &data[..3] {
+                        "tes" => log::info!("received a tes"),
+                        _ => {
+                            tracing::info!("REMOVE SOMETHING: {:?}", data);
+                            let video_id = &data[7..];
+                            let mut playlist = state.list.lock().await;
+                            if let Some((index, _)) = playlist.iter().enumerate().find(|(_, m)| m.id == video_id) {
+                                playlist.remove(index);
+                                state.tx.send(format!("rem {video_id}")).unwrap();
+                            }
+                        },
+                    }
                 }
             }
         }
