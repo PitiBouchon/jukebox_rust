@@ -1,9 +1,9 @@
-use my_youtube_extractor::youtube_info::YtVideoPageInfo;
 use anyhow::Result;
 #[cfg(feature = "axum")]
 use axum::extract::ws;
-use gloo_net::websocket;
 use bincode::{config, Decode, Encode};
+use gloo_net::websocket;
+use my_youtube_extractor::youtube_info::YtVideoPageInfo;
 
 #[derive(Debug, Encode, Decode, Clone)]
 pub enum NetDataAxum {

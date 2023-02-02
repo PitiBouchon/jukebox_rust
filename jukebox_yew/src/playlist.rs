@@ -14,24 +14,22 @@ pub enum PlayListMsg {
 #[derive(PartialEq, Clone)]
 pub enum PlaylistAction {
     Add(Callback<YtVideoPageInfo>),
-    Remove(Callback<String>)
+    Remove(Callback<String>),
 }
 
 #[derive(Properties, PartialEq)]
-pub struct PlaylistProp
-{
+pub struct PlaylistProp {
     pub id: String,
     pub playlist: Vec<YtVideoPageInfo>,
     pub callback: PlaylistAction,
 }
 
 #[function_component(Playlist)]
-pub fn playlist(props: &PlaylistProp) -> Html 
-{
+pub fn playlist(props: &PlaylistProp) -> Html {
     html! {
         <ul id={ props.id.clone() }>
             {
-                props.playlist.clone().iter().map(|v| html! { 
+                props.playlist.clone().iter().map(|v| html! {
                     <li id={ v.id.clone() }>
                         <div>
                             <p>
@@ -41,7 +39,7 @@ pub fn playlist(props: &PlaylistProp) -> Html
                             <Button info={ v.clone() } callback={ props.callback.clone() } />
                         </div>
                     </li>
-                }).collect::<Html>() 
+                }).collect::<Html>()
             }
         </ul>
     }
@@ -54,12 +52,17 @@ pub struct ButtonProp {
 }
 
 #[function_component(Button)]
-fn button(props: &ButtonProp) -> Html 
-{
-        let info = props.info.clone();
-        let (callback, text) = match props.callback.clone() {
-            PlaylistAction::Add(cb) => (Callback::from(move |_| {cb.clone().emit(info.clone())}), "Add"),
-            PlaylistAction::Remove(cb) => (Callback::from(move |_| {cb.clone().emit(info.id.clone())}), "Remove")
-        };
-        html! {<button onclick={ callback.clone() }>{ text }</button>}
+fn button(props: &ButtonProp) -> Html {
+    let info = props.info.clone();
+    let (callback, text) = match props.callback.clone() {
+        PlaylistAction::Add(cb) => (
+            Callback::from(move |_| cb.clone().emit(info.clone())),
+            "Add",
+        ),
+        PlaylistAction::Remove(cb) => (
+            Callback::from(move |_| cb.clone().emit(info.id.clone())),
+            "Remove",
+        ),
+    };
+    html! {<button onclick={ callback.clone() }>{ text }</button>}
 }

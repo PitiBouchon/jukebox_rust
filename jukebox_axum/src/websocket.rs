@@ -1,15 +1,15 @@
-use std::sync::Arc;
+use crate::AppState;
 use anyhow::Result;
-use axum::extract::{State, WebSocketUpgrade};
 use axum::extract::ws::{Message, WebSocket};
+use axum::extract::{State, WebSocketUpgrade};
 use axum::response::IntoResponse;
-use futures::{sink::SinkExt, stream::StreamExt};
 use futures::stream::SplitSink;
-use tokio::sync::mpsc;
-use tracing::log;
+use futures::{sink::SinkExt, stream::StreamExt};
 use jukebox_rust::{NetDataAxum, NetDataYew};
 use my_youtube_extractor::search_videos;
-use crate::AppState;
+use std::sync::Arc;
+use tokio::sync::mpsc;
+use tracing::log;
 
 pub async fn websocket_handler(
     ws: WebSocketUpgrade,
@@ -27,33 +27,31 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
     let mut recv_user_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = receiver.next().await {
             match msg {
-                Message::Binary(data) => {
-                    match NetDataYew::decode_message(data.as_slice()) {
-                        Ok(msg) => {
-                            match msg {
-                                NetDataYew::Remove(video_id) => {
-                                    log::debug!("Removing video: {}", video_id);
-                                    let mut playlist = state.list.lock().await;
-                                    if let Some((index, _)) = playlist.iter().enumerate().find(|(_, m)| m.id == video_id) {
-                                        playlist.remove(index);
-                                    }
-                                    state.tx.send(NetDataAxum::Remove(video_id)).unwrap();
-                                }
-                                NetDataYew::Add(video) => {
-                                    log::debug!("Adding video: {}", video.title);
-                                    let mut playlist = state.list.lock().await;
-                                    playlist.push(video.clone());
-                                    state.tx.send(NetDataAxum::Add(video)).unwrap();
-                                }
-                                NetDataYew::Search(search_txt) => {
-                                    log::debug!("Search videos: {search_txt}");
-                                    let videos = search_videos(&search_txt).await;
-                                    tx_single.send(NetDataAxum::Search(videos)).await.unwrap();
-                                }
+                Message::Binary(data) => match NetDataYew::decode_message(data.as_slice()) {
+                    Ok(msg) => match msg {
+                        NetDataYew::Remove(video_id) => {
+                            log::debug!("Removing video: {}", video_id);
+                            let mut playlist = state.list.lock().await;
+                            if let Some((index, _)) =
+                                playlist.iter().enumerate().find(|(_, m)| m.id == video_id)
+                            {
+                                playlist.remove(index);
                             }
+                            state.tx.send(NetDataAxum::Remove(video_id)).unwrap();
                         }
-                        Err(err) => log::error!("Error decoding message: {err}"),
-                    }
+                        NetDataYew::Add(video) => {
+                            log::debug!("Adding video: {}", video.title);
+                            let mut playlist = state.list.lock().await;
+                            playlist.push(video.clone());
+                            state.tx.send(NetDataAxum::Add(video)).unwrap();
+                        }
+                        NetDataYew::Search(search_txt) => {
+                            log::debug!("Search videos: {search_txt}");
+                            let videos = search_videos(&search_txt).await;
+                            tx_single.send(NetDataAxum::Search(videos)).await.unwrap();
+                        }
+                    },
+                    Err(err) => log::error!("Error decoding message: {err}"),
                 },
                 Message::Close(_) => return,
                 _ => log::error!("Received unwanted data: {msg:?}"),
@@ -100,7 +98,7 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
     }
 }
 
-async fn send_data_ws(sender: &mut SplitSink<WebSocket, Message>,data: NetDataAxum) -> Result<()> {
+async fn send_data_ws(sender: &mut SplitSink<WebSocket, Message>, data: NetDataAxum) -> Result<()> {
     let msg = data.encode_axum_message()?;
     sender.send(msg).await?;
     Ok(())

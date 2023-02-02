@@ -1,16 +1,13 @@
 #![feature(let_chains)]
-#[allow(unused_imports)] // remove useless warning for developping
 
-#[allow(unused_imports)]
 mod templates;
-#[allow(unused_imports)]
 mod websocket;
 
 use axum::body::{boxed, Body};
 use axum::extract::State;
 use axum::http::Response;
 use axum::http::StatusCode;
-use axum::{routing::get, Router, Server, Json};
+use axum::{routing::get, Json, Router, Server};
 use my_youtube_extractor::youtube_info::YtVideoPageInfo;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -90,8 +87,7 @@ async fn main() {
                     let status = res.status();
                     match status {
                         StatusCode::NOT_FOUND => {
-                            let index_path =
-                                PathBuf::from("jukebox_yew/dist/").join("index.html");
+                            let index_path = PathBuf::from("jukebox_yew/dist/").join("index.html");
                             let index_content = match tokio::fs::read_to_string(index_path).await {
                                 Ok(index_content) => index_content,
                                 Err(_) => {
