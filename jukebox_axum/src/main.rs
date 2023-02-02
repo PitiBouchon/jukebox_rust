@@ -6,24 +6,19 @@ mod templates;
 #[allow(unused_imports)]
 mod websocket;
 
-use std::convert::Infallible;
-use crate::templates::index::IndexTemplate;
 use axum::body::{boxed, Body};
 use axum::extract::State;
 use axum::http::Response;
 use axum::http::StatusCode;
-use axum::response::{Redirect, Sse};
-use axum::{response::IntoResponse, routing::{get, post}, Router, Server, Json};
-use my_youtube_extractor::youtube_info::{YtAuthorInfo, YtVideoPageInfo};
+use axum::{routing::get, Router, Server, Json};
+use my_youtube_extractor::youtube_info::YtVideoPageInfo;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
-use axum::response::sse::Event;
-use futures::{Stream, stream};
-use tokio::sync::{broadcast, Mutex, mpsc};
-use tower::{ServiceBuilder, ServiceExt};
+use tokio::sync::{broadcast, Mutex};
+use tower::ServiceExt;
 use tower_http::services::ServeDir;
 use tracing::log;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
@@ -65,10 +60,6 @@ async fn main() {
         list: Mutex::new(vec![]),
         tx,
     });
-    // let (mut send_new_music, mut receive_new_music): (Sender<MusicChange>, Receiver<MusicChange>) = tokio::sync::mpsc::channel(10);
-    // let (mut send_player_update, mut receive_player_update): (Sender<MusicPlayerChange>, Receiver<MusicPlayerChange>) = tokio::sync::mpsc::channel(10);
-
-    let app_state_copy = app_state.clone();
 
     // Music player
     let music_player = async move {
@@ -138,16 +129,6 @@ async fn main() {
         .serve(app.into_make_service())
         .await
         .unwrap();
-}
-
-async fn main_page(State(app_state): State<Arc<AppState>>) -> impl IntoResponse {
-    let playlist = app_state.list.lock().await;
-    let template = IndexTemplate {
-        username: "User".to_string(),
-        playlist: playlist.clone(),
-        searched_musics: vec![],
-    };
-    templates::HtmlTemplate(template)
 }
 
 async fn playlist(State(app_state): State<Arc<AppState>>) -> Json<Vec<YtVideoPageInfo>> {
