@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use futures::channel::mpsc::Sender;
 use futures::{SinkExt, StreamExt};
 use gloo::net::http::Request;
@@ -30,7 +28,7 @@ fn switch(routes: Route) -> Html {
 }
 
 pub struct PlayListHtml {
-    pub playlist: HashMap<String, YtVideoPageInfo>,
+    pub playlist: Vec<YtVideoPageInfo>,
     pub search_videos: Vec<YtVideoPageInfo>,
     pub send: Sender<NetDataYew>,
 }
@@ -94,7 +92,7 @@ impl Component for PlayListHtml {
         });
 
         Self {
-            playlist: HashMap::new(),
+            playlist: vec![],
             search_videos: vec![],
             send: in_tx,
         }
@@ -103,7 +101,7 @@ impl Component for PlayListHtml {
     fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             PlayListMsg::SetGet(v) => {
-                self.playlist = v.iter().map(|x| (x.id.to_owned(), x.to_owned())).collect();
+                self.playlist = v;
                 true
             }
             PlayListMsg::SearchGet(v) => {
@@ -123,7 +121,9 @@ impl Component for PlayListHtml {
                 false
             }
             PlayListMsg::RemoveGet(video_id) => {
-                self.playlist.remove(&video_id);
+                let position_to_remove =
+                    self.playlist.iter().position(|x| x.id == video_id).unwrap();
+                self.playlist.remove(position_to_remove);
                 true
             }
             PlayListMsg::AddSend(video) => {
@@ -134,7 +134,7 @@ impl Component for PlayListHtml {
             }
             PlayListMsg::AddGet(video) => {
                 log::debug!("Add get");
-                self.playlist.insert(video.id.to_owned(), video);
+                self.playlist.push(video);
                 true
             }
         }
@@ -147,8 +147,7 @@ impl Component for PlayListHtml {
         let cb_add = PlaylistAction::Add(ctx.link().callback(PlayListMsg::AddSend).clone());
 
         let cb_search = Callback::from(move |ev: SubmitEvent| {
-            ev.prevent_default(); // Prevent default action (a post request)
-
+            ev.prevent_default();
             log::debug!("Search : {:?}", ev);
             if let Some(window) = window() {
                 if let Some(document) = window.document() {
@@ -167,9 +166,9 @@ impl Component for PlayListHtml {
                     <input type="search" id="search" name="search" placeholder="Search..." minlength=2/>
                 </form>
                 <h2>{"Playlist :"}</h2>
-                <playlist::Playlist id={"videos".to_owned()} playlist={ self.playlist.clone().into_values().collect::<Vec<YtVideoPageInfo>>() } callback={ cb_remove } />
+                <playlist::Playlist id={"videos"} playlist={ self.playlist.clone() } callback={ cb_remove } />
                 <h2>{ "Searched :" }</h2>
-                <playlist::Playlist id={"search".to_owned()} playlist={ self.search_videos.clone() } callback={ cb_add } />
+                <playlist::Playlist id={"search"} playlist={ self.search_videos.clone() } callback={ cb_add } />
             </main>
         }
     }
