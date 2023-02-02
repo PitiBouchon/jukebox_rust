@@ -121,9 +121,13 @@ impl Component for PlayListHtml {
                 false
             }
             PlayListMsg::RemoveGet(video_id) => {
-                let position_to_remove =
-                    self.playlist.iter().position(|x| x.id == video_id).unwrap();
-                self.playlist.remove(position_to_remove);
+                match self.playlist.iter().position(|x| x.id == video_id) {
+                    Some(pos_to_remove) => {
+                        self.playlist.remove(pos_to_remove);
+                    }
+                    None => log::error!("Trying to remove a video that is not present"),
+                }
+
                 true
             }
             PlayListMsg::AddSend(video) => {
