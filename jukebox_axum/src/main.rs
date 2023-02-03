@@ -1,14 +1,21 @@
 #![feature(let_chains)]
+#![feature(trivial_bounds)]
+#![feature(async_closure)]
 
+mod login;
 mod templates;
 mod websocket;
 
+use crate::login::jwt_token::AuthToken;
+use crate::login::{authorize, login_page, register_page, register_post};
 use axum::body::{boxed, Body};
 use axum::extract::State;
-use axum::http::Response;
 use axum::http::StatusCode;
+use axum::http::{Request, Response};
+use axum::response::{IntoResponse, Redirect};
 use axum::{routing::get, Json, Router, Server};
 use my_youtube_extractor::youtube_info::YtVideoPageInfo;
+use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -21,23 +28,10 @@ use tracing::log;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
-#[derive(Debug)]
 pub struct AppState {
     pub list: Mutex<Vec<YtVideoPageInfo>>,
     pub tx: broadcast::Sender<jukebox_rust::NetDataAxum>,
 }
-
-#[derive(Debug)]
-pub enum MusicChange {
-    NewMusic(YtVideoPageInfo),
-    RemoveMusic(YtVideoPageInfo),
-}
-
-// #[derive(Debug)]
-// pub enum MusicPlayerChange {
-//     PlayFirstMusic,
-//     FinishPlaying,
-// }
 
 #[tokio::main]
 async fn main() {
@@ -79,41 +73,10 @@ async fn main() {
 
     // Axum web server
     let app = Router::new()
-        // .route("/", get(|| async { Redirect::permanent("/index") }))
-        // .route("/index", get(main_page))
-        .fallback_service(get(|req| async move {
-            match ServeDir::new("jukebox_yew/dist/").oneshot(req).await {
-                Ok(res) => {
-                    let status = res.status();
-                    match status {
-                        StatusCode::NOT_FOUND => {
-                            let index_path = PathBuf::from("jukebox_yew/dist/").join("index.html");
-                            let index_content = match tokio::fs::read_to_string(index_path).await {
-                                Ok(index_content) => index_content,
-                                Err(_) => {
-                                    return Response::builder()
-                                        .status(StatusCode::NOT_FOUND)
-                                        .body(boxed(Body::from("index file not found")))
-                                        .unwrap()
-                                }
-                            };
-
-                            Response::builder()
-                                .status(StatusCode::OK)
-                                .body(boxed(Body::from(index_content)))
-                                .unwrap()
-                        }
-                        _ => res.map(boxed),
-                    }
-                }
-                Err(err) => Response::builder()
-                    .status(StatusCode::INTERNAL_SERVER_ERROR)
-                    .body(boxed(Body::from(format!("error: {err}"))))
-                    .expect("error response"),
-            }
-        }))
-        // .route("/search", post(search::search))
-        // .route("/add_music", post(search::add_music))
+        .route("/", get(|| async { Redirect::permanent("/index") }))
+        .route("/login", get(login_page).post(authorize))
+        .route("/register", get(register_page).post(register_post))
+        .fallback_service(tower::service_fn(fallback_service_fn))
         .route("/websocket", get(websocket::websocket_handler))
         .route("/api/playlist", get(playlist))
         .with_state(app_state);
@@ -131,4 +94,43 @@ async fn playlist(State(app_state): State<Arc<AppState>>) -> Json<Vec<YtVideoPag
     log::info!("Get /api/playlist");
     let playlist = app_state.list.lock().await;
     Json(playlist.clone())
+}
+
+async fn fallback_service_fn(request: Request<Body>) -> Result<impl IntoResponse, Infallible> {
+    match AuthToken::from_request(&request).await {
+        Ok(_token) => match ServeDir::new("jukebox_yew/dist/").oneshot(request).await {
+            Ok(res) => {
+                let status = res.status();
+                match status {
+                    StatusCode::NOT_FOUND => {
+                        let index_path = PathBuf::from("jukebox_yew/dist/").join("index.html");
+                        let index_content = match tokio::fs::read_to_string(index_path).await {
+                            Ok(index_content) => index_content,
+                            Err(_) => {
+                                return Ok(Response::builder()
+                                    .status(StatusCode::NOT_FOUND)
+                                    .body(boxed(Body::from("index file not found")))
+                                    .unwrap())
+                            }
+                        };
+
+                        Ok(Response::builder()
+                            .status(StatusCode::OK)
+                            .body(boxed(Body::from(index_content)))
+                            .unwrap())
+                    }
+                    _ => Ok(res.map(boxed)),
+                }
+            }
+            Err(err) => Ok(Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(boxed(Body::from(format!("error: {err}"))))
+                .expect("error response")),
+        },
+        Err(_) => Ok(Response::builder()
+            .status(StatusCode::SEE_OTHER)
+            .header("location", "/login")
+            .body(boxed(Body::empty()))
+            .unwrap()),
+    }
 }

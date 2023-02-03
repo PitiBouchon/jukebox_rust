@@ -1,4 +1,5 @@
 pub mod index;
+pub mod login;
 
 use askama::Template;
 use axum::http::StatusCode;

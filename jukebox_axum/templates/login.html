@@ -1,18 +1,19 @@
 <!DOCTYPE html>
 <html>
     <body>
-        <h1>{{ text }} here :</h1>
+        <h1>{{ page_name }} here :</h1>
         <main>
-            <form action={{ action }} method="post">
+            <form action={{ action }} method="post" enctype="application/x-www-form-urlencoded">
                 <label for="username">Username : </label>
                 <input type="text" id="username" name="username" minlength=4 required>
                 <br>
                 <label for="password">Password : </label>
-                <input type="password" id="password" name="password" minlength=8 required>
+                <input type="password" id="password" name="password" minlength=4 required>
                 <p>Attention ! Ce mot de passe n'est pas bien sécurisé</p>
                 <br>
-                <input type="submit" value="{{ text }}">
+                <input type="submit" value="Submit">
             </form>
+            <a href={{ other_page }}>{{ other_page_text }}</a>
         </main>
     </body>
 </html>

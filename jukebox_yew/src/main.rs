@@ -23,7 +23,6 @@ fn switch(routes: Route) -> Html {
     log::info!("Routing");
     match routes {
         Route::Home => html! { <PlayListHtml /> },
-        // Route::HelloServer => html! { <HelloServer /> },
     }
 }
 
