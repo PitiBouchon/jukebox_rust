@@ -80,16 +80,6 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
                 }
             }
         }
-        // while let Ok(data) = rx.recv().await {
-        //     match data.encode_axum_message() {
-        //         Ok(msg) => {
-        //             if sender.send(msg).await.is_err() {
-        //                 break;
-        //             }
-        //         }
-        //         Err(err) => log::error!("Error encoding data: {err}"),
-        //     }
-        // }
     });
 
     tokio::select! {
