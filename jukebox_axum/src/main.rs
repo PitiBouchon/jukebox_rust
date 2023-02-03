@@ -1,7 +1,3 @@
-#![feature(let_chains)]
-#![feature(trivial_bounds)]
-#![feature(async_closure)]
-
 mod login;
 mod templates;
 mod websocket;
