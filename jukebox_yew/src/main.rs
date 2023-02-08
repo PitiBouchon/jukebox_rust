@@ -11,6 +11,7 @@ use web_sys::{window, HtmlInputElement};
 use yew::prelude::*;
 use yew_router::prelude::*;
 
+mod player;
 mod playlist;
 
 #[derive(Clone, Routable, PartialEq)]
@@ -80,6 +81,10 @@ impl Component for PlayListHtml {
                                     log::info!("Search videos received");
                                     link.send_message(PlayListMsg::SearchGet(search_videos));
                                 }
+                                NetDataAxum::Next => {
+                                    log::info!("Video Passed");
+                                    link.send_message(PlayListMsg::NextGet);
+                                }
                             },
                             Err(err) => log::error!("Error parsing data {err}"),
                         }
@@ -126,7 +131,6 @@ impl Component for PlayListHtml {
                     }
                     None => log::error!("Trying to remove a video that is not present"),
                 }
-
                 true
             }
             PlayListMsg::AddSend(video) => {
@@ -140,6 +144,30 @@ impl Component for PlayListHtml {
                 self.playlist.push(video);
                 true
             }
+            PlayListMsg::Play => {
+                if let Err(err) = self.send.try_send(NetDataYew::Play) {
+                    log::error!("Can't send data to MPSC channel: {err}");
+                }
+                false
+            }
+            PlayListMsg::Pause => {
+                if let Err(err) = self.send.try_send(NetDataYew::Pause) {
+                    log::error!("Can't send data to MPSC channel: {err}");
+                }
+                false
+            }
+            PlayListMsg::Next => {
+                if let Err(err) = self.send.try_send(NetDataYew::Next) {
+                    log::error!("Can't send data to MPSC channel: {err}");
+                }
+                false
+            }
+            PlayListMsg::NextGet => {
+                if self.playlist.len() > 0 {
+                    self.playlist.remove(0);
+                }
+                true
+            }
         }
     }
 
@@ -148,6 +176,9 @@ impl Component for PlayListHtml {
         let cb_remove =
             PlaylistAction::Remove(ctx.link().callback(PlayListMsg::RemoveSend).clone());
         let cb_add = PlaylistAction::Add(ctx.link().callback(PlayListMsg::AddSend).clone());
+        let cb_play = ctx.link().callback(|_| PlayListMsg::Play);
+        let cb_pause = ctx.link().callback(|_| PlayListMsg::Pause);
+        let cb_next = ctx.link().callback(|_| PlayListMsg::Next);
 
         let cb_search = Callback::from(move |ev: SubmitEvent| {
             ev.prevent_default();
@@ -168,6 +199,9 @@ impl Component for PlayListHtml {
                 <form onsubmit={ cb_search }>
                     <input type="search" id="search" name="search" placeholder="Search..." minlength=2/>
                 </form>
+                <button onclick={ cb_play.clone() }>{ "Play" }</button>
+                <button onclick={ cb_pause.clone() }>{ "Pause" }</button>
+                <button onclick={ cb_next.clone() }>{ "Next" }</button>
                 <h2>{"Playlist :"}</h2>
                 <playlist::Playlist id={"videos"} playlist={ self.playlist.clone() } callback={ cb_remove } />
                 <h2>{ "Searched :" }</h2>

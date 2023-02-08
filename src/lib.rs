@@ -10,6 +10,7 @@ pub enum NetDataAxum {
     Remove(String),
     Add(YtVideoPageInfo),
     Search(Vec<YtVideoPageInfo>),
+    Next,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -17,6 +18,9 @@ pub enum NetDataYew {
     Search(String),
     Remove(String),
     Add(YtVideoPageInfo),
+    Play,
+    Pause,
+    Next,
 }
 
 impl NetDataYew {

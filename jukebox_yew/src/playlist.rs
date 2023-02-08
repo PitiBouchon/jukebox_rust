@@ -9,6 +9,10 @@ pub enum PlayListMsg {
     SetGet(Vec<YtVideoPageInfo>),
     SearchGet(Vec<YtVideoPageInfo>),
     RemoveGet(String),
+    Play,
+    Pause,
+    Next,
+    NextGet,
 }
 
 #[derive(PartialEq, Clone)]

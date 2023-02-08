@@ -1,4 +1,4 @@
-use crate::AppState;
+use crate::{playlist, AppState};
 use anyhow::Result;
 use axum::extract::ws::{Message, WebSocket};
 use axum::extract::{State, WebSocketUpgrade};
@@ -49,6 +49,13 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
                             log::debug!("Search videos: {search_txt}");
                             let videos = search_videos(&search_txt).await;
                             tx_single.send(NetDataAxum::Search(videos)).await.unwrap();
+                        }
+                        NetDataYew::Play => {
+                            log::debug!("Play video");
+                        }
+                        NetDataYew::Pause => {}
+                        NetDataYew::Next => {
+                            tx_single.send(NetDataAxum::Next).await.unwrap();
                         }
                     },
                     Err(err) => log::error!("Error decoding message: {err}"),
