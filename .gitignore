@@ -11,3 +11,4 @@ Cargo.lock
 
 # IntelliJ IDEA
 /.idea/
+jukebox_rust.iml
