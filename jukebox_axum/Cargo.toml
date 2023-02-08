@@ -26,3 +26,4 @@ sea-orm = { version = "0.10", features = [ "sqlx-sqlite", "runtime-tokio-native-
 argon2 = "0.4"
 rand_core = { version = "0.6", features = ["std"] }
 entity = { path = "../entity" }
+libmpv = { version = "2.0.1", features = ["build_libmpv"] }
