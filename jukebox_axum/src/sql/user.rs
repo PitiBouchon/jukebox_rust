@@ -30,7 +30,6 @@ pub async fn check_password(
     user_to_check: Model,
 ) -> Result<bool, DbErr> {
     let user_pass = Entity::find_by_id(user_to_check.login.to_owned())
-        .select_only()
         .one(&state.conn)
         .await?
         .map_or("".to_owned(), |u| u.password);
