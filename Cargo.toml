@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [workspace]
-members = [".", "jukebox_axum", "jukebox_yew", "my_youtube_extractor"]
+members = [".", "jukebox_axum", "jukebox_yew", "my_youtube_extractor", "entity"]
 
 [dependencies]
 my_youtube_extractor = { path = "./my_youtube_extractor" }

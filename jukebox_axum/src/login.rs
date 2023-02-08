@@ -1,16 +1,17 @@
 mod error;
 pub mod jwt_token;
 
-use crate::templates::login::LoginTemplate;
-use crate::templates::HtmlTemplate;
+use crate::{sql, templates::login::LoginTemplate, templates::HtmlTemplate, AppState};
+use axum::extract::{Form, State};
 use axum::response::{IntoResponse, Redirect};
-use axum::Form;
 use axum_extra::extract::cookie::Cookie;
 use axum_extra::extract::CookieJar;
+use entity::user;
 use error::AuthError;
 use jsonwebtoken::{encode, Header};
 use jwt_token::{AuthToken, KEYS};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
+use std::sync::Arc;
 use std::time::UNIX_EPOCH;
 use tracing::log;
 
@@ -22,29 +23,21 @@ pub struct AuthBody {
     pub token_type: String,
 }
 
-// TODO : change to the struct in another crate
-#[derive(Deserialize)]
-pub struct AuthForm {
-    pub username: String,
-    pub password: String,
-}
-
 #[axum::debug_handler]
 pub async fn authorize(
+    State(state): State<Arc<super::AppState>>,
     jar: CookieJar, // TODO : change this to PrivateCookieJar
-    form: Form<AuthForm>,
+    Form(form): Form<user::Model>,
 ) -> Result<(CookieJar, Redirect), AuthError> {
     log::debug!("Post /login");
-    if form.username.is_empty() || form.password.is_empty() {
+    if form.login.is_empty() || form.password.is_empty() {
         return Err(AuthError::MissingCredentials);
     }
-    // TODO : remove this
-    if form.username != "admin" || form.password != "admin" {
-        return Err(AuthError::WrongCredentials);
-    }
-    // TODO : check present in database here
+    _ = sql::user::check_password(state, form.clone())
+        .await
+        .map_err(|_| AuthError::WrongCredentials)?;
     let auth_token = AuthToken {
-        username: form.username.to_owned(),
+        username: form.login.to_owned(),
         exp: std::time::SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| AuthError::TokenCreation)?
@@ -73,10 +66,11 @@ pub async fn login_page() -> impl IntoResponse {
 
 #[axum::debug_handler]
 pub async fn register_post(
+    State(state): State<Arc<AppState>>,
     jar: CookieJar, // TODO : change this to PrivateCookieJar
-    _form: Form<AuthForm>,
+    Form(form): Form<user::Model>,
 ) -> Result<(CookieJar, Redirect), AuthError> {
-    // TODO : Register here
+    _ = sql::user::create_user(state, form).await;
     Ok((jar, Redirect::to("/login")))
 }
 

@@ -1,4 +1,5 @@
 mod login;
+mod sql;
 mod templates;
 mod websocket;
 
@@ -10,7 +11,10 @@ use axum::http::StatusCode;
 use axum::http::{Request, Response};
 use axum::response::{IntoResponse, Redirect};
 use axum::{routing::get, Json, Router, Server};
+use entity::user;
 use my_youtube_extractor::youtube_info::YtVideoPageInfo;
+use sea_orm::sea_query::TableCreateStatement;
+use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbBackend, DbConn, Schema};
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -21,31 +25,43 @@ use tokio::sync::{broadcast, Mutex};
 use tower::ServiceExt;
 use tower_http::services::ServeDir;
 use tracing::log;
-use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
 
 pub struct AppState {
     pub list: Mutex<Vec<YtVideoPageInfo>>,
     pub tx: broadcast::Sender<jukebox_rust::NetDataAxum>,
+    pub conn: DatabaseConnection,
+}
+
+async fn setup_schema(db: &DbConn) {
+    // Setup Schema helper
+    let schema = Schema::new(DbBackend::Sqlite);
+
+    // Derive from Entity
+    let stmt: TableCreateStatement = schema.create_table_from_entity(user::Entity);
+    // Execute create table statement
+    _ = db.execute(db.get_database_backend().build(&stmt)).await;
 }
 
 #[tokio::main]
 async fn main() {
     // Tracing
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "jukebox_axum=debug,tower_http=debug".into()),
-        )
-        .with(tracing_subscriber::fmt::layer())
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .with_test_writer()
         .init();
 
     let (tx, _rx) = broadcast::channel(1000);
 
     // Channel between music player and axum web server
+    let conn = Database::connect(format!("sqlite://{}?mode=rwc", "sqlite.db"))
+        .await
+        .expect("Database connection failed");
+    setup_schema(&conn).await;
+
     let app_state = Arc::new(AppState {
         list: Mutex::new(vec![]),
         tx,
+        conn,
     });
 
     // Music player
