@@ -21,6 +21,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
+use libmpv::{FileState, Mpv};
 use tokio::sync::{broadcast, Mutex};
 use tower::ServiceExt;
 use tower_http::services::ServeDir;
@@ -30,6 +31,7 @@ pub struct AppState {
     pub list: Mutex<Vec<YtVideoPageInfo>>,
     pub tx: broadcast::Sender<jukebox_rust::NetDataAxum>,
     pub conn: DatabaseConnection,
+    pub mpv: Mutex<Mpv>,
 }
 
 async fn setup_schema(db: &DbConn) {
@@ -58,30 +60,34 @@ async fn main() {
         .expect("Database connection failed");
     setup_schema(&conn).await;
 
+    // Music Player
+    let mpv = Mpv::new().unwrap();
+
     let app_state = Arc::new(AppState {
         list: Mutex::new(vec![]),
         tx,
         conn,
+        mpv: Mutex::new(mpv),
     });
 
-    // Music player
-    let music_player = async move {
-        let mut interval = tokio::time::interval(Duration::from_secs_f32(5.0));
-
-        loop {
-            tokio::select! {
-                _ = interval.tick() => {
-                    // tracing::debug!("20 seconds has passed");
-                    // let mut playlist = app_state_copy.list.lock().await;
-                    // if (playlist.len() > 0) {
-                    //     playlist.remove(0);
-                    // }
-                }
-            }
-        }
-    };
-
-    tokio::spawn(music_player);
+    // // Music player
+    // let music_player = async move {
+    //     let mut interval = tokio::time::interval(Duration::from_secs_f32(5.0));
+    //
+    //     loop {
+    //         tokio::select! {
+    //             _ = interval.tick() => {
+    //                 // tracing::debug!("20 seconds has passed");
+    //                 // let mut playlist = app_state_copy.list.lock().await;
+    //                 // if (playlist.len() > 0) {
+    //                 //     playlist.remove(0);
+    //                 // }
+    //             }
+    //         }
+    //     }
+    // };
+    //
+    // tokio::spawn(music_player);
 
     // Axum web server
     let app = Router::new()

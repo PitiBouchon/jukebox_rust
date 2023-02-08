@@ -8,6 +8,7 @@ use futures::{sink::SinkExt, stream::StreamExt};
 use jukebox_rust::{NetDataAxum, NetDataYew};
 use my_youtube_extractor::search_videos;
 use std::sync::Arc;
+use libmpv::FileState;
 use tokio::sync::mpsc;
 use tracing::log;
 
@@ -43,6 +44,10 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
                             log::debug!("Adding video: {}", video.title);
                             let mut playlist = state.list.lock().await;
                             playlist.push(video.clone());
+                            if playlist.len() == 1 {
+                                let mpv_player = state.mpv.lock().await;
+                                mpv_player.playlist_load_files(&[(&format!("https://www.youtube.com/watch?v={}", video.id), FileState::AppendPlay, None)]).expect("Cannot play MPV Player");
+                            }
                             state.tx.send(NetDataAxum::Add(video)).unwrap();
                         }
                         NetDataYew::Search(search_txt) => {
