@@ -39,7 +39,7 @@ async fn setup_schema(db: &DbConn) {
     // Derive from Entity
     let stmt: TableCreateStatement = schema.create_table_from_entity(user::Entity);
     // Execute create table statement
-    _ = db.execute(db.get_database_backend().build(&stmt)).await;
+    let _ = db.execute(db.get_database_backend().build(&stmt)).await;
 }
 
 #[tokio::main]

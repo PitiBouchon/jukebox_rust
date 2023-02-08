@@ -33,7 +33,7 @@ pub async fn authorize(
     if form.login.is_empty() || form.password.is_empty() {
         return Err(AuthError::MissingCredentials);
     }
-    _ = sql::user::check_password(state, form.clone())
+    let _ = sql::user::check_password(state, form.clone())
         .await
         .map_err(|_| AuthError::WrongCredentials)?;
     let auth_token = AuthToken {
@@ -70,7 +70,7 @@ pub async fn register_post(
     jar: CookieJar, // TODO : change this to PrivateCookieJar
     Form(form): Form<user::Model>,
 ) -> Result<(CookieJar, Redirect), AuthError> {
-    _ = sql::user::create_user(state, form).await;
+    let _ = sql::user::create_user(state, form).await;
     Ok((jar, Redirect::to("/login")))
 }
 
