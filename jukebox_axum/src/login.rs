@@ -15,7 +15,7 @@ use std::sync::Arc;
 use std::time::UNIX_EPOCH;
 use tracing::log;
 
-pub const TOKEN_DURATION_SECONDS: u64 = 60;
+pub const TOKEN_DURATION_SECONDS: u64 = 60; // TODO : change this (60s is for testing purpose only)
 
 #[derive(Serialize)]
 pub struct AuthBody {
