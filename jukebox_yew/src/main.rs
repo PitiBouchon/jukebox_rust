@@ -11,7 +11,6 @@ use web_sys::{window, HtmlInputElement};
 use yew::prelude::*;
 use yew_router::prelude::*;
 
-mod player;
 mod playlist;
 
 #[derive(Clone, Routable, PartialEq)]
