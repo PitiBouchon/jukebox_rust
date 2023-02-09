@@ -50,7 +50,11 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
                             mpv_player
                                 .playlist_load_files(&[(
                                     &format!("https://www.youtube.com/watch?v={}", video.id),
-                                    if playlist.len() == 1 {FileState::AppendPlay} else {FileState::Append},
+                                    if playlist.len() == 1 {
+                                        FileState::AppendPlay
+                                    } else {
+                                        FileState::Append
+                                    },
                                     Some("--vid=no"),
                                 )])
                                 .expect("Cannot play MPV Player");

@@ -12,7 +12,7 @@ use axum::http::{Request, Response};
 use axum::response::{IntoResponse, Redirect};
 use axum::{routing::get, Json, Router, Server};
 use entity::user;
-use libmpv::{FileState, Mpv};
+use libmpv::Mpv;
 use my_youtube_extractor::youtube_info::YtVideoPageInfo;
 use sea_orm::sea_query::TableCreateStatement;
 use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbBackend, DbConn, Schema};
@@ -21,7 +21,6 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::{broadcast, Mutex};
 use tower::ServiceExt;
 use tower_http::services::ServeDir;
@@ -62,6 +61,7 @@ async fn main() {
 
     // Music Player
     let mpv = Mpv::new().unwrap();
+    let _ = mpv.set_property("vid", "no");
 
     let app_state = Arc::new(AppState {
         list: Mutex::new(vec![]),
@@ -69,25 +69,6 @@ async fn main() {
         conn,
         mpv: Mutex::new(mpv),
     });
-
-    // // Music player
-    // let music_player = async move {
-    //     let mut interval = tokio::time::interval(Duration::from_secs_f32(5.0));
-    //
-    //     loop {
-    //         tokio::select! {
-    //             _ = interval.tick() => {
-    //                 // tracing::debug!("20 seconds has passed");
-    //                 // let mut playlist = app_state_copy.list.lock().await;
-    //                 // if (playlist.len() > 0) {
-    //                 //     playlist.remove(0);
-    //                 // }
-    //             }
-    //         }
-    //     }
-    // };
-    //
-    // tokio::spawn(music_player);
 
     // Axum web server
     let app = Router::new()
