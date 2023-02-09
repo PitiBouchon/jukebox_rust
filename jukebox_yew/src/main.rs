@@ -148,7 +148,7 @@ impl Component for PlayListHtml {
                 true
             }
             PlayListMsg::Next => {
-                if self.playlist.len() > 0 {
+                if !self.playlist.is_empty() {
                     self.playlist.remove(0);
                 }
                 true
@@ -206,7 +206,7 @@ impl Component for PlayListHtml {
             }
         });
 
-        let cb_change_volume = ctx.link().callback(|volume| PlayListMsg::SetVolume(volume));
+        let cb_change_volume = ctx.link().callback(PlayListMsg::SetVolume);
         let oninput = Callback::from(move |e: InputEvent| {
             if let Some(input) = e.target_dyn_into::<HtmlInputElement>() {
                 cb_change_volume.clone().emit(input.value_as_number());
