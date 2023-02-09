@@ -6,5 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-sea-orm = { version = "0.10", features = [ "sqlx-sqlite", "runtime-tokio-native-tls", "macros" ] }
+sea-orm = { version = "0.10", features = ["sqlx-sqlite", "runtime-tokio-native-tls", "macros"], optional = true }
+bincode = { version = "2.0.0-rc.2", optional = true}
 serde = { version = "1.0", features = ["derive"] }
+
+[features]
+user = []
+seaorm = ["dep:sea-orm"]
+video = ["dep:bincode"]
