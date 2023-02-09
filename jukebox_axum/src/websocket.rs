@@ -6,9 +6,9 @@ use axum::response::IntoResponse;
 use futures::stream::SplitSink;
 use futures::{sink::SinkExt, stream::StreamExt};
 use jukebox_rust::{NetDataAxum, NetDataYew};
+use libmpv::FileState;
 use my_youtube_extractor::search_videos;
 use std::sync::Arc;
-use libmpv::FileState;
 use tokio::sync::mpsc;
 use tracing::log;
 
@@ -44,10 +44,14 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
                             log::debug!("Adding video: {}", video.title);
                             let mut playlist = state.list.lock().await;
                             playlist.push(video.clone());
-                            if playlist.len() == 1 {
-                                let mpv_player = state.mpv.lock().await;
-                                mpv_player.playlist_load_files(&[(&format!("https://www.youtube.com/watch?v={}", video.id), FileState::AppendPlay, None)]).expect("Cannot play MPV Player");
-                            }
+                            let mpv_player = state.mpv.lock().await;
+                            mpv_player
+                                .playlist_load_files(&[(
+                                    &format!("https://www.youtube.com/watch?v={}", video.id),
+                                    if playlist.len() == 1 {FileState::AppendPlay} else {FileState::Append},
+                                    Some("--vid=no"),
+                                )])
+                                .expect("Cannot play MPV Player");
                             state.tx.send(NetDataAxum::Add(video)).unwrap();
                         }
                         NetDataYew::Search(search_txt) => {
@@ -57,9 +61,18 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
                         }
                         NetDataYew::Play => {
                             log::debug!("Play video");
+                            let mpv_player = state.mpv.lock().await;
+                            mpv_player.unpause().unwrap();
                         }
-                        NetDataYew::Pause => {}
+                        NetDataYew::Pause => {
+                            log::debug!("Pause video");
+                            let mpv_player = state.mpv.lock().await;
+                            mpv_player.pause().unwrap();
+                        }
                         NetDataYew::Next => {
+                            log::debug!("Next video");
+                            let mpv_player = state.mpv.lock().await;
+                            mpv_player.playlist_next_force().unwrap();
                             tx_single.send(NetDataAxum::Next).await.unwrap();
                         }
                     },
