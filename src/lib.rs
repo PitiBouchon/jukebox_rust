@@ -11,6 +11,7 @@ pub enum NetData {
     Play,
     Pause,
     Next,
+    SetVolume(f64),
 }
 
 impl NetData {

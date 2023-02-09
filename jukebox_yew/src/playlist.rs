@@ -10,6 +10,7 @@ pub enum PlayListMsg {
     Play,
     Pause,
     Next,
+    SetVolume(f64),
 }
 
 #[derive(PartialEq, Clone)]

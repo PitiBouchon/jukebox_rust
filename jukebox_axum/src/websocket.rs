@@ -95,7 +95,11 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
                             mpv_player.playlist_next_force().unwrap();
                             tx_single.send(NetData::Next).await.unwrap();
                         }
-                        _ => {}
+                        NetData::SetVolume(volume) => {
+                            let mpv_player = state.mpv.lock().await;
+                            mpv_player.set_property("volume", volume).unwrap();
+                        }
+                        _ => ()
                     },
                     Err(err) => log::error!("Error decoding message: {err}"),
                 },

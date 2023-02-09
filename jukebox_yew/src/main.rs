@@ -30,6 +30,7 @@ pub struct PlayListHtml {
     pub playlist: Vec<Video>,
     pub search_videos: Vec<Video>,
     pub send: UnboundedSender<NetData>,
+    pub volume: f64,
 }
 
 impl Component for PlayListHtml {
@@ -100,6 +101,7 @@ impl Component for PlayListHtml {
             playlist: vec![],
             search_videos: vec![],
             send: in_tx,
+            volume: 50.0,
         }
     }
 
@@ -151,10 +153,16 @@ impl Component for PlayListHtml {
                 }
                 true
             }
+            PlayListMsg::SetVolume(volume) => {
+                if let Err(err) = self.send.send_now(NetData::SetVolume(volume)) {
+                    log::error!("Can't send data to MPSC channel: {err}");
+                }
+                false
+            }
         }
     }
 
-    fn view(&self, _ctx: &Context<Self>) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         let sender = self.send.clone();
         let cb_remove = PlaylistAction::Remove(Callback::from(move |video_id: String| {
             let _ = sender.send_now(NetData::Remove(video_id));
@@ -169,7 +177,7 @@ impl Component for PlayListHtml {
         let cb_play = Callback::from(move |_| {
             let _ = sender.send_now(NetData::Play);
         });
-        
+
         let sender = self.send.clone();
         let cb_pause = Callback::from(move |_| {
             let _ = sender.send_now(NetData::Pause);
@@ -198,6 +206,13 @@ impl Component for PlayListHtml {
             }
         });
 
+        let cb_change_volume = ctx.link().callback(|volume| PlayListMsg::SetVolume(volume));
+        let oninput = Callback::from(move |e: InputEvent| {
+            if let Some(input) = e.target_dyn_into::<HtmlInputElement>() {
+                cb_change_volume.clone().emit(input.value_as_number());
+            }
+        });
+
         html! {
             <main>
                 <form onsubmit={ cb_search }>
@@ -206,6 +221,12 @@ impl Component for PlayListHtml {
                 <button onclick={ cb_play.clone() }>{ "Play" }</button>
                 <button onclick={ cb_pause.clone() }>{ "Pause" }</button>
                 <button onclick={ cb_next.clone() }>{ "Next" }</button>
+                <input type="range"
+                        value={self.volume.to_string()}
+                        class="slider__input"
+                        min=0 max=100 step=1
+                        {oninput}
+                />
                 <h2>{"Playlist :"}</h2>
                 <playlist::Playlist id={"videos"} playlist={ self.playlist.clone() } callback={ cb_remove } />
                 <h2>{ "Searched :" }</h2>
