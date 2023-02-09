@@ -37,6 +37,8 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
                                 playlist.iter().enumerate().find(|(_, m)| m.id == video_id)
                             {
                                 playlist.remove(index);
+                                let mpv_player = state.mpv.lock().await;
+                                mpv_player.playlist_remove_index(index).unwrap();
                             }
                             state.tx.send(NetDataAxum::Remove(video_id)).unwrap();
                         }
