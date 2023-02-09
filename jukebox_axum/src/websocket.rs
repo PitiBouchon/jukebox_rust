@@ -39,6 +39,9 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
                                 playlist.remove(index);
                                 let mpv_player = state.mpv.lock().await;
                                 mpv_player.playlist_remove_index(index).unwrap();
+                                if index == 0 {
+                                    mpv_player.playlist_next_weak().unwrap();
+                                }
                             }
                             state.tx.send(NetData::Remove(video_id)).unwrap();
                         }

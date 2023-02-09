@@ -101,7 +101,7 @@ impl Component for PlayListHtml {
             playlist: vec![],
             search_videos: vec![],
             send: in_tx,
-            volume: 50.0,
+            volume: 100.0,
         }
     }
 

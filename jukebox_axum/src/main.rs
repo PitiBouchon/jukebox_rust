@@ -63,6 +63,7 @@ async fn main() {
     // Music Player
     let mpv = Mpv::new().unwrap();
     let _ = mpv.set_property("vid", "no");
+    let _ = mpv.set_property("af", "dynaudnorm"); // TODO : check if it change something
 
     let app_state = Arc::new(AppState {
         list: Mutex::new(vec![]),
