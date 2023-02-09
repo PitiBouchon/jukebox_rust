@@ -1,9 +1,9 @@
-use futures::channel::mpsc::Sender;
+use yew::platform::pinned::mpsc::UnboundedSender;
 use futures::{SinkExt, StreamExt};
 use gloo::net::http::Request;
 use gloo::net::websocket::{futures::WebSocket, Message};
-use jukebox_rust::{NetDataAxum, NetDataYew};
-use my_youtube_extractor::youtube_info::YtVideoPageInfo;
+use jukebox_rust::NetData;
+use entity::video::Model as Video;
 use playlist::{PlayListMsg, PlaylistAction};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
@@ -27,9 +27,9 @@ fn switch(routes: Route) -> Html {
 }
 
 pub struct PlayListHtml {
-    pub playlist: Vec<YtVideoPageInfo>,
-    pub search_videos: Vec<YtVideoPageInfo>,
-    pub send: Sender<NetDataYew>,
+    pub playlist: Vec<Video>,
+    pub search_videos: Vec<Video>,
+    pub send: UnboundedSender<NetData>,
 }
 
 impl Component for PlayListHtml {
@@ -40,22 +40,23 @@ impl Component for PlayListHtml {
         ctx.link().send_future(async {
             let resp = Request::get("/api/playlist").send().await.unwrap();
             let playlist_res =
-                serde_json::from_str::<Vec<YtVideoPageInfo>>(&resp.text().await.unwrap()).unwrap();
-            PlayListMsg::SetGet(playlist_res)
+                serde_json::from_str::<Vec<Video>>(&resp.text().await.unwrap()).unwrap();
+            PlayListMsg::Load(playlist_res)
         });
 
         let ws = WebSocket::open("ws://127.0.0.1:4000/websocket").unwrap();
 
         let (mut write_ws, mut read_ws) = ws.split();
-        let (in_tx, mut in_rx) = futures::channel::mpsc::channel::<NetDataYew>(1000);
+        let (in_tx, mut in_rx) = yew::platform::pinned::mpsc::unbounded::<NetData>();
+        //let (in_tx, mut in_rx) = futures::channel::mpsc::channel::<NetData>(1000);
 
         spawn_local(async move {
             while let Some(data) = in_rx.next().await {
                 log::debug!("Send to WebSocket");
-                match data.encode_yew_message() {
-                    Ok(msg) => write_ws.send(msg).await.unwrap(),
-                    Err(err) => log::error!("Error when encoding NetDataYew: {err}"),
-                }
+                write_ws
+                    .send(Message::Bytes(data.encode_message().unwrap()))
+                    .await
+                    .unwrap();
             }
         });
 
@@ -66,24 +67,25 @@ impl Component for PlayListHtml {
                 log::debug!("Receive from WebSocket");
                 match msg {
                     Message::Bytes(data_encoded) => {
-                        match NetDataAxum::decode_message(data_encoded.as_slice()) {
+                        match NetData::decode_message(data_encoded.as_slice()) {
                             Ok(data) => match data {
-                                NetDataAxum::Remove(video_id) => {
+                                NetData::Remove(video_id) => {
                                     log::info!("Remove video");
-                                    link.send_message(PlayListMsg::RemoveGet(video_id));
+                                    link.send_message(PlayListMsg::Remove(video_id));
                                 }
-                                NetDataAxum::Add(video) => {
+                                NetData::Add(video) => {
                                     log::info!("Add video");
-                                    link.send_message(PlayListMsg::AddGet(video));
+                                    link.send_message(PlayListMsg::Add(video));
                                 }
-                                NetDataAxum::Search(search_videos) => {
+                                NetData::SearchResult(search_videos) => {
                                     log::info!("Search videos received");
-                                    link.send_message(PlayListMsg::SearchGet(search_videos));
+                                    link.send_message(PlayListMsg::List(search_videos));
                                 }
-                                NetDataAxum::Next => {
+                                NetData::Next => {
                                     log::info!("Video Passed");
-                                    link.send_message(PlayListMsg::NextGet);
+                                    link.send_message(PlayListMsg::Next);
                                 }
+                                _ => {}
                             },
                             Err(err) => log::error!("Error parsing data {err}"),
                         }
@@ -103,27 +105,21 @@ impl Component for PlayListHtml {
 
     fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
-            PlayListMsg::SetGet(v) => {
+            PlayListMsg::Load(v) => {
                 self.playlist = v;
                 true
             }
-            PlayListMsg::SearchGet(v) => {
+            PlayListMsg::List(v) => {
                 self.search_videos = v;
                 true
             }
-            PlayListMsg::SearchSend(data) => {
-                if let Err(err) = self.send.try_send(NetDataYew::Search(data)) {
+            PlayListMsg::Search(data) => {
+                if let Err(err) = self.send.send_now(NetData::Search(data)) {
                     log::error!("Can't send data to MPSC channel: {err}");
                 }
-                false
+                true
             }
-            PlayListMsg::RemoveSend(video_id) => {
-                if let Err(err) = self.send.try_send(NetDataYew::Remove(video_id)) {
-                    log::error!("Can't send data to MPSC channel: {err}");
-                }
-                false
-            }
-            PlayListMsg::RemoveGet(video_id) => {
+            PlayListMsg::Remove(video_id) => {
                 match self.playlist.iter().position(|x| x.id == video_id) {
                     Some(pos_to_remove) => {
                         self.playlist.remove(pos_to_remove);
@@ -132,36 +128,24 @@ impl Component for PlayListHtml {
                 }
                 true
             }
-            PlayListMsg::AddSend(video) => {
-                if let Err(err) = self.send.try_send(NetDataYew::Add(video)) {
-                    log::error!("Can't send data to MPSC channel: {err}");
-                }
-                false
-            }
-            PlayListMsg::AddGet(video) => {
+            PlayListMsg::Add(video) => {
                 log::debug!("Add get");
                 self.playlist.push(video);
                 true
             }
             PlayListMsg::Play => {
-                if let Err(err) = self.send.try_send(NetDataYew::Play) {
+                if let Err(err) = self.send.send_now(NetData::Play) {
                     log::error!("Can't send data to MPSC channel: {err}");
                 }
-                false
+                true
             }
             PlayListMsg::Pause => {
-                if let Err(err) = self.send.try_send(NetDataYew::Pause) {
+                if let Err(err) = self.send.send_now(NetData::Pause) {
                     log::error!("Can't send data to MPSC channel: {err}");
                 }
-                false
+                true
             }
             PlayListMsg::Next => {
-                if let Err(err) = self.send.try_send(NetDataYew::Next) {
-                    log::error!("Can't send data to MPSC channel: {err}");
-                }
-                false
-            }
-            PlayListMsg::NextGet => {
                 if self.playlist.len() > 0 {
                     self.playlist.remove(0);
                 }
@@ -170,15 +154,36 @@ impl Component for PlayListHtml {
         }
     }
 
-    fn view(&self, ctx: &Context<Self>) -> Html {
-        let cb_send_msg = ctx.link().callback(PlayListMsg::SearchSend);
-        let cb_remove =
-            PlaylistAction::Remove(ctx.link().callback(PlayListMsg::RemoveSend).clone());
-        let cb_add = PlaylistAction::Add(ctx.link().callback(PlayListMsg::AddSend).clone());
-        let cb_play = ctx.link().callback(|_| PlayListMsg::Play);
-        let cb_pause = ctx.link().callback(|_| PlayListMsg::Pause);
-        let cb_next = ctx.link().callback(|_| PlayListMsg::Next);
+    fn view(&self, _ctx: &Context<Self>) -> Html {
+        let sender = self.send.clone();
+        let cb_remove = PlaylistAction::Remove(Callback::from(move |video_id: String| {
+            let _ = sender.send_now(NetData::Remove(video_id));
+        }));
 
+        let sender = self.send.clone();
+        let cb_add = PlaylistAction::Add(Callback::from(move |video: Video| {
+            let _ = sender.send_now(NetData::Add(video));
+        }));
+
+        let sender = self.send.clone();
+        let cb_play = Callback::from(move |_| {
+            let _ = sender.send_now(NetData::Play);
+        });
+        
+        let sender = self.send.clone();
+        let cb_pause = Callback::from(move |_| {
+            let _ = sender.send_now(NetData::Pause);
+        });
+
+        let sender = self.send.clone();
+        let cb_next = Callback::from(move |_| {
+            let _ = sender.send_now(NetData::Next);
+        });
+
+        let sender = self.send.clone();
+        let cb_send_msg = Callback::from(move |search: String| {
+            let _ = sender.send_now(NetData::Search(search));
+        });
         let cb_search = Callback::from(move |ev: SubmitEvent| {
             ev.prevent_default();
             log::debug!("Search : {:?}", ev);

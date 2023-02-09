@@ -1,30 +1,27 @@
-use my_youtube_extractor::youtube_info::YtVideoPageInfo;
+use entity::video::Model as Video;
 use yew::prelude::*;
 
 pub enum PlayListMsg {
-    RemoveSend(String),
-    AddSend(YtVideoPageInfo),
-    AddGet(YtVideoPageInfo),
-    SearchSend(String),
-    SetGet(Vec<YtVideoPageInfo>),
-    SearchGet(Vec<YtVideoPageInfo>),
-    RemoveGet(String),
+    Load(Vec<Video>),
+    Search(String),
+    List(Vec<Video>),
+    Remove(String),
+    Add(Video),
     Play,
     Pause,
     Next,
-    NextGet,
 }
 
 #[derive(PartialEq, Clone)]
 pub enum PlaylistAction {
-    Add(Callback<YtVideoPageInfo>),
+    Add(Callback<Video>),
     Remove(Callback<String>),
 }
 
 #[derive(Properties, PartialEq)]
 pub struct PlaylistProp {
     pub id: String,
-    pub playlist: Vec<YtVideoPageInfo>,
+    pub playlist: Vec<Video>,
     pub callback: PlaylistAction,
 }
 
@@ -51,7 +48,7 @@ pub fn playlist(props: &PlaylistProp) -> Html {
 
 #[derive(Properties, PartialEq)]
 pub struct ButtonProp {
-    pub info: YtVideoPageInfo,
+    pub info: Video,
     pub callback: PlaylistAction,
 }
 

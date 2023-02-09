@@ -12,8 +12,8 @@ use axum::http::{Request, Response};
 use axum::response::{IntoResponse, Redirect};
 use axum::{routing::get, Json, Router, Server};
 use entity::user;
+use entity::video;
 use libmpv::Mpv;
-use my_youtube_extractor::youtube_info::YtVideoPageInfo;
 use sea_orm::sea_query::TableCreateStatement;
 use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbBackend, DbConn, Schema};
 use std::convert::Infallible;
@@ -27,8 +27,8 @@ use tower_http::services::ServeDir;
 use tracing::log;
 
 pub struct AppState {
-    pub list: Mutex<Vec<YtVideoPageInfo>>,
-    pub tx: broadcast::Sender<jukebox_rust::NetDataAxum>,
+    pub list: Mutex<Vec<video::Model>>,
+    pub tx: broadcast::Sender<jukebox_rust::NetData>,
     pub conn: DatabaseConnection,
     pub mpv: Mutex<Mpv>,
 }
@@ -37,9 +37,10 @@ async fn setup_schema(db: &DbConn) {
     // Setup Schema helper
     let schema = Schema::new(DbBackend::Sqlite);
 
-    // Derive from Entity
     let stmt: TableCreateStatement = schema.create_table_from_entity(user::Entity);
-    // Execute create table statement
+    let _ = db.execute(db.get_database_backend().build(&stmt)).await;
+
+    let stmt: TableCreateStatement = schema.create_table_from_entity(video::Entity);
     let _ = db.execute(db.get_database_backend().build(&stmt)).await;
 }
 
@@ -89,7 +90,8 @@ async fn main() {
         .unwrap();
 }
 
-async fn playlist(State(app_state): State<Arc<AppState>>) -> Json<Vec<YtVideoPageInfo>> {
+#[axum::debug_handler]
+async fn playlist(State(app_state): State<Arc<AppState>>) -> Json<Vec<video::Model>> {
     log::info!("Get /api/playlist");
     let playlist = app_state.list.lock().await;
     Json(playlist.clone())

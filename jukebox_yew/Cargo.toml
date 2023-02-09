@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-my_youtube_extractor = { path = "../my_youtube_extractor" }
+entity = { path = "../entity", features = ["video"] }
 jukebox_rust = { path = ".." }
 log = "0.4"
 wasm-bindgen-futures = "0.4"

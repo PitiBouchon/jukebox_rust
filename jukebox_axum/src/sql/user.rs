@@ -5,7 +5,7 @@ use argon2::{
     Argon2,
 };
 use entity::user::{ActiveModel, Entity, Model};
-use sea_orm::{DbErr, EntityTrait, InsertResult, QuerySelect, RuntimeErr, Set};
+use sea_orm::{DbErr, EntityTrait, InsertResult, RuntimeErr, Set};
 
 pub async fn create_user(
     state: Arc<crate::AppState>,
