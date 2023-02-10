@@ -39,7 +39,7 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
                                 playlist.remove(index);
                                 let mpv_player = state.mpv.lock().await;
                                 mpv_player.playlist_remove_index(index).unwrap();
-                                if index == 0 {
+                                if index == 0 && !playlist.is_empty() {
                                     mpv_player.playlist_next_weak().unwrap();
                                 }
                             }
