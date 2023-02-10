@@ -11,6 +11,7 @@ use libmpv::FileState;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::log;
+use crate::music_player::MusicPlayerMessage;
 
 pub async fn websocket_handler(
     ws: WebSocketUpgrade,
@@ -37,11 +38,12 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
                                 playlist.iter().enumerate().find(|(_, m)| m.id == video_id)
                             {
                                 playlist.remove(index);
-                                let mpv_player = state.mpv.lock().await;
-                                mpv_player.playlist_remove_index(index).unwrap();
-                                if index == 0 && !playlist.is_empty() {
-                                    mpv_player.playlist_next_weak().unwrap();
-                                }
+                                state.music_player_tx.send(MusicPlayerMessage::RemoveVideo(index)).unwrap();
+                                // let mpv_player = state.mpv.lock().await;
+                                // mpv_player.playlist_remove_index(index).unwrap();
+                                // if index == 0 && !playlist.is_empty() {
+                                //     mpv_player.playlist_next_weak().unwrap();
+                                // }
                             }
                             state.tx.send(NetData::Remove(video_id)).unwrap();
                         }
@@ -49,18 +51,19 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
                             log::debug!("Adding video: {}", video.title);
                             let mut playlist = state.list.lock().await;
                             playlist.push(video.clone());
-                            let mpv_player = state.mpv.lock().await;
-                            mpv_player
-                                .playlist_load_files(&[(
-                                    &format!("https://www.youtube.com/watch?v={}", video.id),
-                                    if playlist.len() == 1 {
-                                        FileState::AppendPlay
-                                    } else {
-                                        FileState::Append
-                                    },
-                                    Some("--vid=no"),
-                                )])
-                                .expect("Cannot play MPV Player");
+                            state.music_player_tx.send(MusicPlayerMessage::AddMusic(video.clone())).unwrap();
+                            // let mpv_player = state.mpv.lock().await;
+                            // mpv_player
+                            //     .playlist_load_files(&[(
+                            //         &format!("https://www.youtube.com/watch?v={}", video.id),
+                            //         if playlist.len() == 1 {
+                            //             FileState::AppendPlay
+                            //         } else {
+                            //             FileState::Append
+                            //         },
+                            //         Some("--vid=no"),
+                            //     )])
+                            //     .expect("Cannot play MPV Player");
                             state.tx.send(NetData::Add(video)).unwrap();
                         }
                         NetData::Search(search_txt) => {
@@ -84,23 +87,27 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
                         }
                         NetData::Play => {
                             log::debug!("Play video");
-                            let mpv_player = state.mpv.lock().await;
-                            mpv_player.unpause().unwrap();
+                            // let mpv_player = state.mpv.lock().await;
+                            // mpv_player.unpause().unwrap();
+                            state.music_player_tx.send(MusicPlayerMessage::Play).unwrap();
                         }
                         NetData::Pause => {
                             log::debug!("Pause video");
-                            let mpv_player = state.mpv.lock().await;
-                            mpv_player.pause().unwrap();
+                            state.music_player_tx.send(MusicPlayerMessage::Pause).unwrap();
+                            // let mpv_player = state.mpv.lock().await;
+                            // mpv_player.pause().unwrap();
                         }
                         NetData::Next => {
                             log::debug!("Next video");
-                            let mpv_player = state.mpv.lock().await;
-                            mpv_player.playlist_next_force().unwrap();
-                            tx_single.send(NetData::Next).await.unwrap();
+                            // TODO : Remove this
+                            // let mpv_player = state.mpv.lock().await;
+                            // mpv_player.playlist_next_force().unwrap();
+                            // tx_single.send(NetData::Next).await.unwrap();
                         }
                         NetData::SetVolume(volume) => {
-                            let mpv_player = state.mpv.lock().await;
-                            mpv_player.set_property("volume", volume).unwrap();
+                            // let mpv_player = state.mpv.lock().await;
+                            // mpv_player.set_property("volume", volume).unwrap();
+                            state.music_player_tx.send(MusicPlayerMessage::SetVolume(volume)).unwrap();
                         }
                         _ => ()
                     },

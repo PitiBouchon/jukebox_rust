@@ -2,6 +2,7 @@ mod login;
 mod sql;
 mod templates;
 mod websocket;
+mod music_player;
 
 use crate::login::jwt_token::AuthToken;
 use crate::login::{authorize, login_page, register_page, register_post};
@@ -22,15 +23,18 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::{broadcast, Mutex};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tower::ServiceExt;
 use tower_http::services::ServeDir;
 use tracing::log;
+use music_player::MusicPlayerMessage;
 
 pub struct AppState {
     pub list: Mutex<Vec<video::Model>>,
     pub tx: broadcast::Sender<jukebox_rust::NetData>,
     pub conn: DatabaseConnection,
-    pub mpv: Mutex<Mpv>,
+    // pub mpv: Mutex<Mpv>,
+    pub music_player_tx: UnboundedSender<MusicPlayerMessage>,
 }
 
 async fn setup_schema(db: &DbConn) {
@@ -60,17 +64,16 @@ async fn main() {
         .expect("Database connection failed");
     setup_schema(&conn).await;
 
-    // Music Player
-    let mpv = Mpv::new().unwrap();
-    let _ = mpv.set_property("vid", "no");
-    let _ = mpv.set_property("af", "dynaudnorm"); // TODO : check if it change something
-
+    let (music_player_tx, rx1) = tokio::sync::mpsc::unbounded_channel();
     let app_state = Arc::new(AppState {
         list: Mutex::new(vec![]),
         tx,
         conn,
-        mpv: Mutex::new(mpv),
+        music_player_tx
     });
+
+
+    let mut handle = music_player::music_player( rx1, app_state.clone());
 
     // Axum web server
     let app = Router::new()
@@ -89,6 +92,8 @@ async fn main() {
         .serve(app.into_make_service())
         .await
         .unwrap();
+
+    handle.abort();
 }
 
 #[axum::debug_handler]
