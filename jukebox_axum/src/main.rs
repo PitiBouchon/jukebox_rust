@@ -1,8 +1,11 @@
+#![feature(is_some_and)]
+
 mod login;
 mod sql;
 mod templates;
 mod websocket;
 mod music_player;
+mod music_player2;
 
 use crate::login::jwt_token::AuthToken;
 use crate::login::{authorize, login_page, register_page, register_post};
@@ -14,7 +17,6 @@ use axum::response::{IntoResponse, Redirect};
 use axum::{routing::get, Json, Router, Server};
 use entity::user;
 use entity::video;
-use libmpv::Mpv;
 use sea_orm::sea_query::TableCreateStatement;
 use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbBackend, DbConn, Schema};
 use std::convert::Infallible;
@@ -23,7 +25,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::{broadcast, Mutex};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::UnboundedSender;
 use tower::ServiceExt;
 use tower_http::services::ServeDir;
 use tracing::log;
@@ -33,7 +35,6 @@ pub struct AppState {
     pub list: Mutex<Vec<video::Model>>,
     pub tx: broadcast::Sender<jukebox_rust::NetData>,
     pub conn: DatabaseConnection,
-    // pub mpv: Mutex<Mpv>,
     pub music_player_tx: UnboundedSender<MusicPlayerMessage>,
 }
 
@@ -73,7 +74,7 @@ async fn main() {
     });
 
 
-    let mut handle = music_player::music_player( rx1, app_state.clone());
+    let mut handle = music_player2::music_player( rx1, app_state.clone());
 
     // Axum web server
     let app = Router::new()
