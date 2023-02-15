@@ -1,91 +1,94 @@
 use crate::music_player::MusicPlayerMessage;
 use crate::AppState;
-use gstreamer_player::{gst, PlayerVideoRenderer};
-use std::sync::Arc;
-use gstreamer::ClockTime;
-use tokio::sync::mpsc::error::TryRecvError;
-use tokio::sync::mpsc::UnboundedReceiver;
-use tokio::task::JoinHandle;
-use tracing::log;
+use futures::StreamExt;
+use gstreamer::prelude::{ElementExt, ObjectExt};
+use gstreamer::{glib, MessageView, State};
 use jukebox_rust::NetData;
+use std::sync::Arc;
+use tokio::sync::mpsc::UnboundedReceiver;
+use tracing::log;
 
-// #[derive(Debug)]
-// pub enum MusicPlayerMessage {
-//     SetVolume(f64),
-//     AddMusic(video::Model), // (video, APPEND_PLAY)
-//     RemoveVideo(usize), // Index of the video in the playlist
-//     Play,
-//     Pause,
-// }
+// Reference : https://gitlab.freedesktop.org/gstreamer/gstreamer-rs/-/blob/7dc5a90b8ab45593d2461850d274ce8ca84891fe/examples/src/bin/glib-futures.rs
 
-pub fn music_player(
-    mut rx: UnboundedReceiver<MusicPlayerMessage>,
-    app_state: Arc<AppState>,
-) -> JoinHandle<()> {
-    gst::init().expect("gstreamer initialization failed");
-    let dispatcher = gstreamer_player::PlayerGMainContextSignalDispatcher::new(None);
-    let video_renderer: Option<&PlayerVideoRenderer> = None;
-    let player = gstreamer_player::Player::new(video_renderer, Some(&dispatcher));
-    player.connect_end_of_stream(move |_player| log::error!("END OF STREAM"));
-    player.connect_state_changed(|_player, _state| log::error!("State changed: {:?}", _state));
+pub fn music_player(mut rx: UnboundedReceiver<MusicPlayerMessage>, app_state: Arc<AppState>) {
+    let ctx = glib::MainContext::default();
+    let main_loop = glib::MainLoop::new(Some(&ctx), false);
+    gstreamer::init().expect("gstreamer initialization failed");
 
-    tokio::spawn(async move {
-        let mut player_playlist = vec![];
-        loop {
-            let msg_res = rx.try_recv();
-            match msg_res {
-                Err(TryRecvError::Disconnected) => log::error!("Disconnected WTF ??"),
-                Ok(msg) => match msg {
-                    MusicPlayerMessage::Play => player.play(),
-                    MusicPlayerMessage::Pause => player.pause(),
-                    MusicPlayerMessage::SetVolume(volume) => player.set_volume(volume),
-                    MusicPlayerMessage::AddMusic(video) => {
-                        let music_uri = my_youtube_extractor::get_best_audio(&video.id)
-                            .await
-                            .unwrap()
-                            .url;
-                        if player_playlist.is_empty() {
-                            player.set_uri(Some(&music_uri));
-                            player.play();
-                        }
-                        player_playlist.push(music_uri);
-                        log::error!("Playing: {}", player_playlist.len());
-                    }
-                    MusicPlayerMessage::RemoveVideo(index) => {
-                        player_playlist.remove(index);
-                        if index == 0 {
-                            if !player_playlist.is_empty() {
-                                player.set_uri(Some(&player_playlist[0]));
-                                player.play();
+    // Used to play music
+    let pipeline = gstreamer::parse_launch(&format!("playbin")).unwrap();
+    // Used to receive events of the pipeline
+    let bus = pipeline.bus().unwrap();
+
+    // Spawn a new thread with tokio so that is have a tokio reactor (std::thread::spawn will not work here)
+    tokio::task::spawn_blocking(move || {
+        ctx.spawn_local(async move {
+            let mut music_player_playlist: Vec<String> = vec![];
+            let mut messages = bus.stream();
+            loop {
+                tokio::select! {
+                    msg1_opt = rx.recv() => {
+                        if let Some(msg) = msg1_opt {
+                            match msg {
+                                MusicPlayerMessage::SetVolume(volume) => {
+                                    pipeline.set_property("volume", volume);
+                                }
+                                MusicPlayerMessage::AddMusic(video) => {
+                                    let uri = my_youtube_extractor::get_best_audio(&video.id).await.unwrap().url;
+                                    if music_player_playlist.is_empty() {
+                                        log::info!("Playing music: {}", uri);
+                                        pipeline.set_property("uri", uri.clone());
+                                        pipeline.set_state(State::Playing).unwrap();
+                                    }
+                                    music_player_playlist.push(uri);
+                                }
+                                MusicPlayerMessage::RemoveVideo(index) => {
+                                    music_player_playlist.remove(index);
+                                    if index == 0 {
+                                        if let Some(uri) = music_player_playlist.first() {
+                                            log::info!("Playing music: {}", uri);
+                                            pipeline.set_property("uri", uri.clone());
+                                            pipeline.set_state(State::Playing).unwrap();
+                                        }
+                                        else {
+                                            pipeline.set_state(State::Null).unwrap();
+                                        }
+                                    }
+                                }
+                                MusicPlayerMessage::Play => {
+                                    pipeline.set_state(State::Playing).unwrap();
+                                }
+                                MusicPlayerMessage::Pause => {
+                                    pipeline.set_state(State::Paused).unwrap();
+                                }
                             }
-                            else {
-                                player.set_uri(None);
+                        }
+                    }
+                    msg2_opt = messages.next() => {
+                        if let Some(msg) = msg2_opt {
+                            match msg.view() {
+                                MessageView::Eos(..) => {
+                                    let mut playlist_axum = app_state.list.lock().await;
+                                    music_player_playlist.remove(0);
+                                    playlist_axum.remove(0);
+                                    app_state.tx.send(NetData::Next).unwrap();
+                                    if let Some(uri) = music_player_playlist.first() {
+                                        log::info!("Playing music: {}", uri);
+                                        pipeline.set_property("uri", uri.clone());
+                                        pipeline.set_state(State::Playing).unwrap();
+                                    }
+                                    else {
+                                        pipeline.set_state(State::Null).unwrap();
+                                    }
+                               }
+                                _ => ()
                             }
                         }
                     }
-                },
-                _ => (),
-            }
-            const EPSILON: u64 = 10_000_000; // 10 microseconds epsilon
-            if player.uri().is_some() && player.position().is_some_and(|player_position| {
-                player.duration().is_some_and(|media_duration| {
-                    player_position.abs_diff(*media_duration) < EPSILON && player_position != ClockTime::ZERO
-                })
-            }) {
-                log::error!("Removing: {}", player_playlist.len());
-                let mut playlist = app_state.list.lock().await;
-                player_playlist.remove(0);
-                playlist.remove(0);
-                app_state.tx.send(NetData::Next).unwrap();
-                if !player_playlist.is_empty() {
-                    player.set_uri(Some(&player_playlist[0]));
-                    player.play();
-                }
-                else {
-                    player.seek(ClockTime::ZERO);
-                    player.set_uri(None);
                 }
             }
-        }
-    })
+        });
+
+        main_loop.run();
+    });
 }

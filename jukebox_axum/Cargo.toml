@@ -28,4 +28,3 @@ rand_core = { version = "0.6", features = ["std"] }
 entity = { path = "../entity", features = ["video", "user", "seaorm"] }
 libmpv = "2.0.1"
 gstreamer = "0.19.7"
-gstreamer-player = "0.19.4"

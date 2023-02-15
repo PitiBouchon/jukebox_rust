@@ -74,7 +74,7 @@ async fn main() {
     });
 
 
-    let mut handle = music_player2::music_player( rx1, app_state.clone());
+    music_player2::music_player( rx1, app_state.clone());
 
     // Axum web server
     let app = Router::new()
@@ -93,8 +93,6 @@ async fn main() {
         .serve(app.into_make_service())
         .await
         .unwrap();
-
-    handle.abort();
 }
 
 #[axum::debug_handler]
