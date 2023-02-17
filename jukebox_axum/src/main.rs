@@ -5,7 +5,6 @@ mod sql;
 mod templates;
 mod websocket;
 mod music_player;
-mod music_player2;
 
 use crate::login::jwt_token::AuthToken;
 use crate::login::{authorize, login_page, register_page, register_post};
@@ -74,7 +73,7 @@ async fn main() {
     });
 
 
-    music_player2::music_player( rx1, app_state.clone());
+    music_player::music_player(rx1, app_state.clone());
 
     // Axum web server
     let app = Router::new()

@@ -7,7 +7,7 @@ use entity::video::Model as Video;
 use futures::stream::SplitSink;
 use futures::{sink::SinkExt, stream::StreamExt};
 use jukebox_rust::NetData;
-use libmpv::FileState;
+// use libmpv::FileState;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::log;
