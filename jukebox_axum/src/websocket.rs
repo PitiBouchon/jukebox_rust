@@ -7,11 +7,10 @@ use entity::video::Model as Video;
 use futures::stream::SplitSink;
 use futures::{sink::SinkExt, stream::StreamExt};
 use jukebox_rust::NetData;
-// use libmpv::FileState;
+use crate::music_player::MusicPlayerMessage;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::log;
-use crate::music_player::MusicPlayerMessage;
 
 pub async fn websocket_handler(
     ws: WebSocketUpgrade,
@@ -31,27 +30,26 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
             match msg {
                 Message::Binary(data) => match NetData::decode_message(data.as_slice()) {
                     Ok(msg) => match msg {
-                        NetData::Remove(video_id) => {
+                        NetData::Remove(index, video_id) => {
                             log::debug!("Removing video: {}", video_id);
                             let mut playlist = state.list.lock().await;
-                            if let Some((index, _)) =
-                                playlist.iter().enumerate().find(|(_, m)| m.id == video_id)
-                            {
+                            if let Some(video) = playlist.get(index) && video.id == video_id {
                                 playlist.remove(index);
-                                state.music_player_tx.send(MusicPlayerMessage::RemoveVideo(index)).unwrap();
-                                // let mpv_player = state.mpv.lock().await;
-                                // mpv_player.playlist_remove_index(index).unwrap();
-                                // if index == 0 && !playlist.is_empty() {
-                                //     mpv_player.playlist_next_weak().unwrap();
-                                // }
+                                state.music_player_tx.send(MusicPlayerMessage::RemoveVideo(index, video_id.clone())).unwrap();
+                                state.tx.send(NetData::Remove(index, video_id)).unwrap();
                             }
-                            state.tx.send(NetData::Remove(video_id)).unwrap();
+                            else {
+                                log::error!("Trying to remove a video that is not in the playlist");
+                            }
                         }
                         NetData::Add(video) => {
                             log::debug!("Adding video: {}", video.title);
                             let mut playlist = state.list.lock().await;
                             playlist.push(video.clone());
-                            state.music_player_tx.send(MusicPlayerMessage::AddMusic(video.clone())).unwrap();
+                            state
+                                .music_player_tx
+                                .send(MusicPlayerMessage::AddMusic(video.clone()))
+                                .unwrap();
                             // let mpv_player = state.mpv.lock().await;
                             // mpv_player
                             //     .playlist_load_files(&[(
@@ -89,11 +87,17 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
                             log::debug!("Play video");
                             // let mpv_player = state.mpv.lock().await;
                             // mpv_player.unpause().unwrap();
-                            state.music_player_tx.send(MusicPlayerMessage::Play).unwrap();
+                            state
+                                .music_player_tx
+                                .send(MusicPlayerMessage::Play)
+                                .unwrap();
                         }
                         NetData::Pause => {
                             log::debug!("Pause video");
-                            state.music_player_tx.send(MusicPlayerMessage::Pause).unwrap();
+                            state
+                                .music_player_tx
+                                .send(MusicPlayerMessage::Pause)
+                                .unwrap();
                             // let mpv_player = state.mpv.lock().await;
                             // mpv_player.pause().unwrap();
                         }
@@ -107,9 +111,12 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
                         NetData::SetVolume(volume) => {
                             // let mpv_player = state.mpv.lock().await;
                             // mpv_player.set_property("volume", volume).unwrap();
-                            state.music_player_tx.send(MusicPlayerMessage::SetVolume(volume)).unwrap();
+                            state
+                                .music_player_tx
+                                .send(MusicPlayerMessage::SetVolume(volume))
+                                .unwrap();
                         }
-                        _ => ()
+                        _ => (),
                     },
                     Err(err) => log::error!("Error decoding message: {err}"),
                 },

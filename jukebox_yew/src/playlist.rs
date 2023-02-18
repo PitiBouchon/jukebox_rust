@@ -5,7 +5,7 @@ pub enum PlayListMsg {
     Load(Vec<Video>),
     Search(String),
     List(Vec<Video>),
-    Remove(String),
+    Remove(usize, String), // Index and id of the video
     Add(Video),
     Play,
     Pause,
@@ -16,7 +16,7 @@ pub enum PlayListMsg {
 #[derive(PartialEq, Clone)]
 pub enum PlaylistAction {
     Add(Callback<Video>),
-    Remove(Callback<String>),
+    Remove(Callback<(usize, String)>),
 }
 
 #[derive(Properties, PartialEq)]
@@ -31,14 +31,14 @@ pub fn playlist(props: &PlaylistProp) -> Html {
     html! {
         <ul id={ props.id.clone() }>
             {
-                props.playlist.clone().iter().map(|v| html! {
+                props.playlist.clone().iter().enumerate().map(|(i, v)| html! {
                     <li id={ v.id.clone() }>
                         <div>
                             <p>
                                 { "Title : "}{ v.title.clone() }{ v.id.clone() }
                             </p>
                             <img src={ v.thumbnail.clone() } width=600 height=400 />
-                            <Button info={ v.clone() } callback={ props.callback.clone() } />
+                            <Button info={ v.clone() } callback={ props.callback.clone() } index={ i } />
                         </div>
                     </li>
                 }).collect::<Html>()
@@ -51,18 +51,20 @@ pub fn playlist(props: &PlaylistProp) -> Html {
 pub struct ButtonProp {
     pub info: Video,
     pub callback: PlaylistAction,
+    pub index: usize,
 }
 
 #[function_component(Button)]
 fn button(props: &ButtonProp) -> Html {
     let info = props.info.clone();
+    let index = props.index;
     let (callback, text) = match props.callback.clone() {
         PlaylistAction::Add(cb) => (
             Callback::from(move |_| cb.clone().emit(info.clone())),
             "Add",
         ),
         PlaylistAction::Remove(cb) => (
-            Callback::from(move |_| cb.clone().emit(info.id.clone())),
+            Callback::from(move |_| cb.clone().emit((index, info.id.clone()))),
             "Remove",
         ),
     };

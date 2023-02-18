@@ -1,10 +1,11 @@
 #![feature(is_some_and)]
+#![feature(let_chains)]
 
 mod login;
+mod music_player;
 mod sql;
 mod templates;
 mod websocket;
-mod music_player;
 
 use crate::login::jwt_token::AuthToken;
 use crate::login::{authorize, login_page, register_page, register_post};
@@ -16,6 +17,7 @@ use axum::response::{IntoResponse, Redirect};
 use axum::{routing::get, Json, Router, Server};
 use entity::user;
 use entity::video;
+use music_player::MusicPlayerMessage;
 use sea_orm::sea_query::TableCreateStatement;
 use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbBackend, DbConn, Schema};
 use std::convert::Infallible;
@@ -23,12 +25,11 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
-use tokio::sync::{broadcast, Mutex};
 use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::{broadcast, Mutex};
 use tower::ServiceExt;
 use tower_http::services::ServeDir;
 use tracing::log;
-use music_player::MusicPlayerMessage;
 
 pub struct AppState {
     pub list: Mutex<Vec<video::Model>>,
@@ -69,9 +70,8 @@ async fn main() {
         list: Mutex::new(vec![]),
         tx,
         conn,
-        music_player_tx
+        music_player_tx,
     });
-
 
     music_player::music_player(rx1, app_state.clone());
 

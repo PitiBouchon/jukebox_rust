@@ -6,7 +6,7 @@ use entity::video::Model;
 pub enum NetData {
     Search(String),
     SearchResult(Vec<Model>),
-    Remove(String),
+    Remove(usize, String), // Index and id of the video
     Add(Model),
     Play,
     Pause,

@@ -1,13 +1,13 @@
-use yew::platform::pinned::mpsc::UnboundedSender;
+use entity::video::Model as Video;
 use futures::{SinkExt, StreamExt};
 use gloo::net::http::Request;
 use gloo::net::websocket::{futures::WebSocket, Message};
 use jukebox_rust::NetData;
-use entity::video::Model as Video;
 use playlist::{PlayListMsg, PlaylistAction};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{window, HtmlInputElement};
+use yew::platform::pinned::mpsc::UnboundedSender;
 use yew::prelude::*;
 use yew_router::prelude::*;
 
@@ -70,9 +70,9 @@ impl Component for PlayListHtml {
                     Message::Bytes(data_encoded) => {
                         match NetData::decode_message(data_encoded.as_slice()) {
                             Ok(data) => match data {
-                                NetData::Remove(video_id) => {
+                                NetData::Remove(index, video_id) => {
                                     log::info!("Remove video");
-                                    link.send_message(PlayListMsg::Remove(video_id));
+                                    link.send_message(PlayListMsg::Remove(index, video_id));
                                 }
                                 NetData::Add(video) => {
                                     log::info!("Add video");
@@ -121,12 +121,13 @@ impl Component for PlayListHtml {
                 }
                 true
             }
-            PlayListMsg::Remove(video_id) => {
-                match self.playlist.iter().position(|x| x.id == video_id) {
-                    Some(pos_to_remove) => {
-                        self.playlist.remove(pos_to_remove);
+            PlayListMsg::Remove(index, video_id) => {
+                if let Some(video) = self.playlist.get(index) {
+                    if video.id == video_id {
+                        self.playlist.remove(index);
+                    } else {
+                        log::error!("Trying to remove a video that is not present");
                     }
-                    None => log::error!("Trying to remove a video that is not present"),
                 }
                 true
             }
@@ -164,9 +165,12 @@ impl Component for PlayListHtml {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let sender = self.send.clone();
-        let cb_remove = PlaylistAction::Remove(Callback::from(move |video_id: String| {
-            let _ = sender.send_now(NetData::Remove(video_id));
-        }));
+        let cb_remove = PlaylistAction::Remove(Callback::from(
+            move |(video_index, video_id): (usize, String)| {
+                log::debug!("Removing id: {}", video_id);
+                let _ = sender.send_now(NetData::Remove(video_index, video_id.to_string()));
+            },
+        ));
 
         let sender = self.send.clone();
         let cb_add = PlaylistAction::Add(Callback::from(move |video: Video| {

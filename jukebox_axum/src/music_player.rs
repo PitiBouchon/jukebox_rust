@@ -1,4 +1,5 @@
 use crate::AppState;
+use entity::video;
 use futures::StreamExt;
 use gstreamer::prelude::{ElementExt, ObjectExt};
 use gstreamer::{glib, MessageView, State};
@@ -6,13 +7,12 @@ use jukebox_rust::NetData;
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tracing::log;
-use entity::video;
 
 #[derive(Debug)]
 pub enum MusicPlayerMessage {
     SetVolume(f64),
-    AddMusic(video::Model), // (video, APPEND_PLAY)
-    RemoveVideo(usize), // Index of the video in the playlist
+    AddMusic(video::Model),     // (video, APPEND_PLAY)
+    RemoveVideo(usize, String), // Index and Id of the video in the playlist
     Play,
     Pause,
 }
@@ -32,7 +32,7 @@ pub fn music_player(mut rx: UnboundedReceiver<MusicPlayerMessage>, app_state: Ar
     // Spawn a new thread with tokio so that is have a tokio reactor (std::thread::spawn will not work here)
     tokio::task::spawn_blocking(move || {
         ctx.spawn_local(async move {
-            let mut music_player_playlist: Vec<String> = vec![];
+            let mut music_player_playlist: Vec<(String, String)> = vec![];
             let mut messages = bus.stream();
             loop {
                 tokio::select! {
@@ -49,19 +49,24 @@ pub fn music_player(mut rx: UnboundedReceiver<MusicPlayerMessage>, app_state: Ar
                                         pipeline.set_property("uri", uri.clone());
                                         pipeline.set_state(State::Playing).unwrap();
                                     }
-                                    music_player_playlist.push(uri);
+                                    music_player_playlist.push((video.id, uri));
                                 }
-                                MusicPlayerMessage::RemoveVideo(index) => {
-                                    music_player_playlist.remove(index);
-                                    if index == 0 {
-                                        if let Some(uri) = music_player_playlist.first() {
-                                            log::info!("Playing music: {}", uri);
-                                            pipeline.set_property("uri", uri.clone());
-                                            pipeline.set_state(State::Playing).unwrap();
+                                MusicPlayerMessage::RemoveVideo(index, video_id) => {
+                                    if let Some((local_video_id, _)) = music_player_playlist.first() && local_video_id == &video_id {
+                                        music_player_playlist.remove(index);
+                                        if index == 0 {
+                                            if let Some((_, uri)) = music_player_playlist.first() {
+                                                log::info!("Playing music: {}", uri);
+                                                pipeline.set_property("uri", uri.clone());
+                                                pipeline.set_state(State::Playing).unwrap();
+                                            }
+                                            else {
+                                                pipeline.set_state(State::Null).unwrap();
+                                            }
                                         }
-                                        else {
-                                            pipeline.set_state(State::Null).unwrap();
-                                        }
+                                    }
+                                    else {
+                                        log::error!("Trying to remove a video that is not in the playlist");
                                     }
                                 }
                                 MusicPlayerMessage::Play => {
@@ -81,7 +86,7 @@ pub fn music_player(mut rx: UnboundedReceiver<MusicPlayerMessage>, app_state: Ar
                                     music_player_playlist.remove(0);
                                     playlist_axum.remove(0);
                                     app_state.tx.send(NetData::Next).unwrap();
-                                    if let Some(uri) = music_player_playlist.first() {
+                                    if let Some((_, uri)) = music_player_playlist.first() {
                                         log::info!("Playing music: {}", uri);
                                         pipeline.set_property("uri", uri.clone());
                                         pipeline.set_state(State::Playing).unwrap();
