@@ -5,7 +5,7 @@ mod test;
 mod youtube_extractor;
 pub mod youtube_info;
 
-use crate::youtube_extractor::YtVideoPage;
+use crate::youtube_extractor::{ErrorExtractor, YtVideoPage};
 use youtube_extractor::YtPageData;
 use youtube_info::*;
 
@@ -16,17 +16,14 @@ use youtube_info::*;
 ///
 /// // Async is just here to show it must be in an async block
 /// async {
-/// let v: Vec<YtVideoPageInfo> = search_videos("Diggy diggy hole").await;
+///     let v: Vec<YtVideoPageInfo> = search_videos("Diggy diggy hole").await?;
 /// };
 /// ```
 /// See [`crate::youtube_info::YtVideoPageInfo`]
-pub async fn search_videos(search: &str) -> Vec<YtVideoPageInfo> {
+pub async fn search_videos(search: &str) -> Result<Vec<YtVideoPageInfo>, ErrorExtractor> {
     let url = "https://www.youtube.com/results?search_query=".to_owned() + search;
 
-    match YtPageData::new(url.as_str()).await {
-        Ok(yt_page_data) => yt_page_data.videos_search_info(),
-        Err(_) => vec![],
-    }
+    YtPageData::new(url.as_str()).await?.videos_search_info()
 }
 
 /// To get the audio link of a video :
@@ -36,11 +33,11 @@ pub async fn search_videos(search: &str) -> Vec<YtVideoPageInfo> {
 ///
 /// // Async is just here to show it must be in an async block
 /// async {
-/// let link: YtAudioData = get_best_audio("ytWz0qVvBZ0").await.unwrap(); // Video link is : https://www.youtube.com/watch?v=ytWz0qVvBZ0
+///     let link: YtAudioData = get_best_audio("ytWz0qVvBZ0").await.unwrap(); // Video link is : https://www.youtube.com/watch?v=ytWz0qVvBZ0
 /// };
 /// ```
 /// See [`crate::youtube_info::YtAudioData`]
-pub async fn get_best_audio(id: &str) -> Result<YtAudioData, String> {
+pub async fn get_best_audio(id: &str) -> Result<YtAudioData, ErrorExtractor> {
     let url = "https://www.youtube.com/watch?v=".to_owned() + id;
     let yt_video_page = YtVideoPage::new(url.as_str()).await?;
     yt_video_page.get_best_audio().await

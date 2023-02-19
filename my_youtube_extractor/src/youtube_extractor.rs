@@ -7,6 +7,21 @@ use reqwest::StatusCode;
 use serde_json::Value;
 use std::collections::HashMap;
 
+#[derive(Debug)]
+pub enum ErrorExtractor {
+    ErrorParsing(String),
+    ErrorReqwest,
+}
+
+impl std::fmt::Display for ErrorExtractor {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            ErrorExtractor::ErrorParsing(err) => write!(f, "Error parsing : {}", err),
+            ErrorExtractor::ErrorReqwest => write!(f, "Error with the reqwest"),
+        }
+    }
+}
+
 // See : https://gist.github.com/sidneys/7095afe4da4ae58694d128b1034e01e2
 // or : https://tyrrrz.me/blog/reverse-engineering-youtube/
 // m4a  : 139 | 140 | 141 | 256 | 258 | 325 | 328
@@ -36,7 +51,7 @@ pub struct YtPageData {
 }
 
 impl YtPageData {
-    pub async fn new(url: &str) -> Result<Self, String> {
+    pub async fn new(url: &str) -> Result<Self, ErrorExtractor> {
         let request_url = url.to_owned() + "&bpctr=9999999999&has_verified=1";
 
         let webpage = get_webpage(&request_url).await?;
@@ -49,15 +64,15 @@ impl YtPageData {
         })
     }
 
-    pub fn videos_search_info(&self) -> Vec<YtVideoPageInfo> {
+    pub fn videos_search_info(&self) -> Result<Vec<YtVideoPageInfo>, ErrorExtractor> {
         if !self.url.contains("https://www.youtube.com/results") {
             panic!("{} is not a search url", self.url);
         }
 
-        YtPageData::get_search_videos(&self.yt_initial_data)
+        Ok(YtPageData::get_search_videos(&self.yt_initial_data)?
             .iter()
             .filter_map(YtPageData::get_video_info)
-            .collect()
+            .collect())
     }
 
     fn get_video_info(v: &Value) -> Option<YtVideoPageInfo> {
@@ -67,65 +82,43 @@ impl YtPageData {
         };
 
         if let Some(v_id) = video_info.get("videoId") {
-            let id = v_id.as_str().unwrap().to_string();
+            let id = v_id.as_str()?.to_string();
 
             let title = video_info
-                .get("title")
-                .unwrap()
-                .get("runs")
-                .unwrap()
-                .get(0)
-                .unwrap()
-                .get("text")
-                .unwrap()
-                .as_str()
-                .unwrap()
+                .get("title")?
+                .get("runs")?
+                .get(0)?
+                .get("text")?
+                .as_str()?
                 .to_string();
 
             let thumbnail = video_info
-                .get("thumbnail")
-                .unwrap()
-                .get("thumbnails")
-                .unwrap()
-                .get(0)
-                .unwrap()
-                .get("url")
-                .unwrap()
-                .as_str()
-                .unwrap()
+                .get("thumbnail")?
+                .get("thumbnails")?
+                .get(0)?
+                .get("url")?
+                .as_str()?
                 .to_string();
 
             let author_name = video_info
-                .get("ownerText")
-                .unwrap()
-                .get("runs")
-                .unwrap()
-                .get(0)
-                .unwrap()
-                .get("text")
-                .unwrap()
-                .as_str()
-                .unwrap()
+                .get("ownerText")?
+                .get("runs")?
+                .get(0)?
+                .get("text")?
+                .as_str()?
                 .to_string();
 
             let author_thumbnail = video_info
-                .get("channelThumbnailSupportedRenderers")
-                .unwrap()
-                .get("channelThumbnailWithLinkRenderer")
-                .unwrap()
-                .get("thumbnail")
-                .unwrap()
-                .get("thumbnails")
-                .unwrap()
-                .get(0)
-                .unwrap()
-                .get("url")
-                .unwrap()
-                .as_str()
-                .unwrap()
+                .get("channelThumbnailSupportedRenderers")?
+                .get("channelThumbnailWithLinkRenderer")?
+                .get("thumbnail")?
+                .get("thumbnails")?
+                .get(0)?
+                .get("url")?
+                .as_str()?
                 .to_string();
 
-            if let Some(vct) = video_info.get("viewCountText").unwrap().get("simpleText") {
+            if let Some(vct) = video_info.get("viewCountText")?.get("simpleText") {
                 if let Some(lt) = video_info.get("lengthText") {
                     Some(YtVideoPageInfo {
                         id,
@@ -138,8 +131,8 @@ impl YtPageData {
                             tag: "".to_string(), // TODO()
                         },
                         meta_description: "".to_string(), // TODO()
-                        duration: lt.get("simpleText").unwrap().as_str().unwrap().to_string(),
-                        n_views: vct.as_str().unwrap().to_string(),
+                        duration: lt.get("simpleText")?.as_str()?.to_string(),
+                        n_views: vct.as_str()?.to_string(),
                         date: "".to_string(), // TODO()
                     })
                 } else {
@@ -190,26 +183,40 @@ impl YtPageData {
         }
     }
 
-    fn get_search_videos(yt_initial_data: &Value) -> &Vec<Value> {
-        yt_initial_data
+    fn get_search_videos(yt_initial_data: &Value) -> Result<&Vec<Value>, ErrorExtractor> {
+        Ok(yt_initial_data
             .get("contents")
-            .unwrap()
+            .ok_or(ErrorExtractor::ErrorParsing(
+                "Missing 'contents'".to_string(),
+            ))?
             .get("twoColumnSearchResultsRenderer")
-            .unwrap()
+            .ok_or(ErrorExtractor::ErrorParsing(
+                "Missing 'twoColumnSearchResultsRenderer'".to_string(),
+            ))?
             .get("primaryContents")
-            .unwrap()
+            .ok_or(ErrorExtractor::ErrorParsing(
+                "Missing 'primaryContents'".to_string(),
+            ))?
             .get("sectionListRenderer")
-            .unwrap()
+            .ok_or(ErrorExtractor::ErrorParsing(
+                "Missing 'sectionListRenderer'".to_string(),
+            ))?
             .get("contents")
-            .unwrap()
+            .ok_or(ErrorExtractor::ErrorParsing(
+                "Missing 'contents'".to_string(),
+            ))?
             .get(0)
-            .unwrap()
+            .ok_or(ErrorExtractor::ErrorParsing("Cannot get(0)".to_string()))?
             .get("itemSectionRenderer")
-            .unwrap()
+            .ok_or(ErrorExtractor::ErrorParsing(
+                "Missing 'itemSectionRenderer'".to_string(),
+            ))?
             .get("contents")
-            .unwrap()
+            .ok_or(ErrorExtractor::ErrorParsing(
+                "Missing 'contents'".to_string(),
+            ))?
             .as_array()
-            .unwrap()
+            .ok_or(ErrorExtractor::ErrorParsing("No an array".to_string()))?)
     }
 }
 
@@ -227,17 +234,24 @@ pub struct YtVideoPage {
 }
 
 impl YtVideoPage {
-    pub async fn new(url: &str) -> Result<Self, String> {
+    pub async fn new(url: &str) -> Result<Self, ErrorExtractor> {
         let yt_page_data = YtPageData::new(url).await?;
 
         let yt_initial_player_response =
             get_var(&yt_page_data.webpage, "var ytInitialPlayerResponse")?;
 
         let js_url = get_js_url(&yt_page_data.webpage)?;
-        let js_code = reqwest::get(&js_url).await.unwrap().text().await.unwrap();
+        let js_code = reqwest::get(&js_url)
+            .await
+            .map_err(|_| ErrorExtractor::ErrorReqwest)?
+            .text()
+            .await
+            .map_err(|_| ErrorExtractor::ErrorReqwest)?;
         let cipher_fun = get_cipher_fun(&js_code);
         if cipher_fun.is_empty() {
-            return Err(format!("Can't find Cipher code in {js_url}"));
+            return Err(ErrorExtractor::ErrorParsing(format!(
+                "Can't find Cipher code in {js_url}"
+            )));
         }
         if cipher_fun.is_empty() {
             // See also : https://killerplayer.com/decode-cipher-signature-youtube/
@@ -254,26 +268,30 @@ impl YtVideoPage {
         })
     }
 
-    pub async fn get_best_audio(&self) -> Result<YtAudioData, String> {
+    pub async fn get_best_audio(&self) -> Result<YtAudioData, ErrorExtractor> {
         let audios = self.audio_urls();
-        if audios.is_empty() {
-            return Err(format!("No audio found at : {}", self.yt_page_data.url));
-        }
         let best_audio = audios
             .into_iter()
             .max_by(|e1, e2| e1.bitrate.cmp(&e2.bitrate))
-            .unwrap();
+            .ok_or(ErrorExtractor::ErrorParsing(format!(
+                "No audio found at : {}",
+                self.yt_page_data.url
+            )))?;
 
         if let Ok(r) = reqwest::get(&best_audio.url).await {
             if r.status() != StatusCode::from_u16(200).unwrap() {
-                return Err(format!("{} status code : {}", best_audio.url, r.status()));
+                return Err(ErrorExtractor::ErrorParsing(format!(
+                    "{} status code : {}",
+                    best_audio.url,
+                    r.status()
+                )));
             }
         }
 
         Ok(best_audio)
     }
 
-    fn get_url(&self, v: &Value) -> Result<YtAudioData, String> {
+    fn get_url(&self, v: &Value) -> Result<YtAudioData, ErrorExtractor> {
         match v.get("url") {
             None => match v.get("signatureCipher") {
                 None => panic!("No signatureCipher nor url in Value : {v}"),
@@ -293,7 +311,13 @@ impl YtVideoPage {
                         };
                         let mut tmp_sig = match s.get("s") {
                             None => panic!("No s ('sig') in signatureCipher"),
-                            Some(&sig) => urlencoding::decode(sig).unwrap().into_owned(),
+                            Some(&sig) => urlencoding::decode(sig)
+                                .map_err(|_| {
+                                    ErrorExtractor::ErrorParsing(
+                                        "Error url decoding signature_Cipher".to_string(),
+                                    )
+                                })?
+                                .into_owned(),
                         };
                         debug!("Before sig : {}", tmp_sig);
                         for a in self.yt_video_data.cipher_fun.iter() {
@@ -422,18 +446,16 @@ impl YtVideoPage {
     }
 }
 
-async fn get_webpage(url: &str) -> Result<String, String> {
-    let resp = reqwest::get(url).await;
-    match resp {
-        Ok(r) => match r.text().await {
-            Ok(webpage) => Ok(webpage),
-            Err(why) => Err(why.to_string()),
-        },
-        Err(why) => Err(format!("Error connecting to {url} : {why}")),
-    }
+async fn get_webpage(url: &str) -> Result<String, ErrorExtractor> {
+    reqwest::get(url)
+        .await
+        .map_err(|_| ErrorExtractor::ErrorReqwest)?
+        .text()
+        .await
+        .map_err(|_| ErrorExtractor::ErrorReqwest)
 }
 
-fn get_var(webpage: &str, var: &str) -> Result<Value, String> {
+fn get_var(webpage: &str, var: &str) -> Result<Value, ErrorExtractor> {
     match webpage.find(var) {
         Some(i) => {
             // TODO("May improve this")
@@ -442,21 +464,29 @@ fn get_var(webpage: &str, var: &str) -> Result<Value, String> {
                     let var_str = &webpage[i + var.len() + 3..i + f - 1]; // +3 : " = " | -1 : " "
                     match serde_json::from_str(var_str) {
                         Ok(v) => Ok(v),
-                        Err(why) => Err(format!("Error parsing {var} to JSON : {why}")),
+                        Err(why) => Err(ErrorExtractor::ErrorParsing(format!(
+                            "Error parsing {var} to JSON : {why}"
+                        ))),
                     }
                 }
-                None => Err(format!("No </script> found after {var}")),
+                None => Err(ErrorExtractor::ErrorParsing(format!(
+                    "No </script> found after {var}"
+                ))),
             }
         }
-        None => Err(format!("No {var} found in webpage")),
+        None => Err(ErrorExtractor::ErrorParsing(format!(
+            "No {var} found in webpage"
+        ))),
     }
 }
 
-fn get_js_url(webpage: &str) -> Result<String, String> {
+fn get_js_url(webpage: &str) -> Result<String, ErrorExtractor> {
     match webpage.find("jsUrl") {
-        None => Err("No jsUrl found".to_string()),
+        None => Err(ErrorExtractor::ErrorParsing("No jsUrl found".to_string())),
         Some(i) => match webpage[i + 8..].find('"') {
-            None => Err("No \" found after jsUrl".to_string()),
+            None => Err(ErrorExtractor::ErrorParsing(
+                "No \" found after jsUrl".to_string(),
+            )),
             Some(f) => Ok("https://www.youtube.com".to_owned() + &webpage[i + 8..i + f + 8]),
         },
     }
@@ -477,6 +507,7 @@ fn slice(s: &mut String, i: usize) {
     *s = s.chars().skip(i).collect();
 }
 
+/// Swap a char in a String with the first caracter
 fn swap(s: &mut String, i: usize) {
     let mut swapped = String::with_capacity(s.len());
     let (first, second) = s.split_at(i);

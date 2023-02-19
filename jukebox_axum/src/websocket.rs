@@ -1,3 +1,4 @@
+use crate::music_player::MusicPlayerMessage;
 use crate::AppState;
 use anyhow::Result;
 use axum::extract::ws::{self, Message, WebSocket};
@@ -7,7 +8,6 @@ use entity::video::Model as Video;
 use futures::stream::SplitSink;
 use futures::{sink::SinkExt, stream::StreamExt};
 use jukebox_rust::NetData;
-use crate::music_player::MusicPlayerMessage;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::log;
@@ -66,22 +66,24 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
                         }
                         NetData::Search(search_txt) => {
                             log::debug!("Search videos: {search_txt}");
-                            let videos = my_youtube_extractor::search_videos(&search_txt).await;
-                            tx_single
-                                .send(NetData::SearchResult(
-                                    videos
-                                        .iter()
-                                        .map(|v| Video {
-                                            id: v.id.to_owned(),
-                                            title: v.title.to_owned(),
-                                            author: v.author.name.to_owned(),
-                                            thumbnail: v.thumbnail.to_owned(),
-                                            duration: v.duration.clone(),
-                                        })
-                                        .collect(),
-                                ))
-                                .await
-                                .unwrap();
+                            match my_youtube_extractor::search_videos(&search_txt).await {
+                                Err(why) => log::error!("Error searching videos : {}", why),
+                                Ok(videos) => tx_single
+                                    .send(NetData::SearchResult(
+                                        videos
+                                            .iter()
+                                            .map(|v| Video {
+                                                id: v.id.to_owned(),
+                                                title: v.title.to_owned(),
+                                                author: v.author.name.to_owned(),
+                                                thumbnail: v.thumbnail.to_owned(),
+                                                duration: v.duration.clone(),
+                                            })
+                                            .collect(),
+                                    ))
+                                    .await
+                                    .unwrap(),
+                            }
                         }
                         NetData::Play => {
                             log::debug!("Play video");

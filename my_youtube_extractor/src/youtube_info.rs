@@ -1,3 +1,4 @@
+use crate::youtube_extractor::ErrorExtractor;
 use bincode::{Decode, Encode};
 use serde::ser::Error;
 use serde::{Deserialize, Serialize};
@@ -77,33 +78,55 @@ impl std::fmt::Display for YtAudioData {
 }
 
 impl YtAudioData {
-    pub fn new(url: String, v: &Value) -> Result<Self, String> {
+    pub fn new(url: String, v: &Value) -> Result<Self, ErrorExtractor> {
         if v.get("itag").is_none()
             || v.get("bitrate").is_none()
             || v.get("audioSampleRate").is_none()
             || v.get("audioChannels").is_none()
         {
-            return Err(format!("{v} is not a normal video"));
+            return Err(ErrorExtractor::ErrorParsing(format!(
+                "{v} is not a normal video"
+            )));
         }
 
-        let loudness_db = v.get("loudnessDb").map(|a| a.as_f64().unwrap() as f32);
+        let loudness_db = v
+            .get("loudnessDb")
+            .and_then(|a| a.as_f64().map(|f| f as f32));
 
         let ms_duration = v
             .get("approxDurationMs")
-            .map(|a| a.as_str().unwrap().parse().unwrap());
+            .and_then(|a| a.as_str().and_then(|s| s.parse().ok()));
+
+        let itag = v
+            .get("itag")
+            .ok_or(ErrorExtractor::ErrorParsing("Missing 'itag'".to_string()))?
+            .as_u64()
+            .ok_or(ErrorExtractor::ErrorParsing(
+                "Cannot convert to u64".to_string(),
+            ))? as u32;
+
+        let sample_rate = v.get("bitrate").unwrap().as_u64().unwrap() as u32;
+
+        let bitrate = v
+            .get("audioSampleRate")
+            .ok_or(ErrorExtractor::ErrorParsing(
+                "Missing 'audioSampleRate'".to_string(),
+            ))?
+            .as_str()
+            .ok_or(ErrorExtractor::ErrorParsing(
+                "Cannot convert to str".to_string(),
+            ))?
+            .parse()
+            .map_err(|_| ErrorExtractor::ErrorParsing("Cannot convert to u32".to_string()))?;
+
+        let channels = v.get("audioChannels").unwrap().as_u64().unwrap() as u16;
 
         Ok(Self {
             url,
-            itag: v.get("itag").unwrap().as_u64().unwrap() as u32,
-            sample_rate: v.get("bitrate").unwrap().as_u64().unwrap() as u32,
-            bitrate: v
-                .get("audioSampleRate")
-                .unwrap()
-                .as_str()
-                .unwrap()
-                .parse()
-                .unwrap(),
-            channels: v.get("audioChannels").unwrap().as_u64().unwrap() as u16,
+            itag,
+            sample_rate,
+            bitrate,
+            channels,
             ms_duration,
             loudness_db,
         })
