@@ -1,7 +1,5 @@
 use crate::youtube_info::*;
 
-use log::{debug, info, warn};
-
 use phf::{phf_set, Set};
 use reqwest::StatusCode;
 use serde_json::Value;
@@ -136,11 +134,11 @@ impl YtPageData {
                         date: "".to_string(), // TODO()
                     })
                 } else {
-                    debug!("Live video : https://www.youtube.com/watch?v={}", id);
+                    log::debug!("Live video : https://www.youtube.com/watch?v={}", id);
                     None
                 }
             } else {
-                debug!(
+                log::debug!(
                     "Probably live video : https://www.youtube.com/watch?v={}",
                     id
                 );
@@ -178,13 +176,13 @@ impl YtPageData {
             //     .get("simpleText").unwrap()
             //     .as_str().unwrap().to_string();
         } else {
-            debug!("No videoid in {}", video_info);
+            log::debug!("No videoid in {}", video_info);
             None
         }
     }
 
     fn get_search_videos(yt_initial_data: &Value) -> Result<&Vec<Value>, ErrorExtractor> {
-        Ok(yt_initial_data
+        yt_initial_data
             .get("contents")
             .ok_or(ErrorExtractor::ErrorParsing(
                 "Missing 'contents'".to_string(),
@@ -216,7 +214,7 @@ impl YtPageData {
                 "Missing 'contents'".to_string(),
             ))?
             .as_array()
-            .ok_or(ErrorExtractor::ErrorParsing("No an array".to_string()))?)
+            .ok_or(ErrorExtractor::ErrorParsing("No an array".to_string()))
     }
 }
 
@@ -255,7 +253,7 @@ impl YtVideoPage {
         }
         if cipher_fun.is_empty() {
             // See also : https://killerplayer.com/decode-cipher-signature-youtube/
-            warn!("Cannot find Cipher function in {}", js_url);
+            log::warn!("Cannot find Cipher function in {}", js_url);
         }
 
         Ok(Self {
@@ -319,31 +317,30 @@ impl YtVideoPage {
                                 })?
                                 .into_owned(),
                         };
-                        debug!("Before sig : {}", tmp_sig);
+                        // log::debug!("Before sig : {}", tmp_sig);
                         for a in self.yt_video_data.cipher_fun.iter() {
                             match a {
                                 CipherFunction::Swap(i) => {
-                                    debug!("Swap {}", i);
+                                    // log::debug!("Swap {}", i);
                                     swap(&mut tmp_sig, *i)
                                 }
                                 CipherFunction::Slice(i) => {
-                                    debug!("Slice : {}", i);
+                                    // log::debug!("Slice : {}", i);
                                     slice(&mut tmp_sig, *i)
                                 }
                                 CipherFunction::Reverse => {
-                                    debug!("Reverse");
+                                    // log::debug!("Reverse");
                                     reverse(&mut tmp_sig)
                                 }
                             }
-                            debug!("Match End : {}", tmp_sig);
                         }
-                        debug!("After sig : {}", tmp_sig);
+                        // log::debug!("After sig : {}", tmp_sig);
 
                         let resu = tmp_url + "&sig=" + &*tmp_sig;
                         let resu = match urlencoding::decode(&resu) {
                             Ok(u) => u.into_owned(),
                             Err(why) => {
-                                warn!("Error decoding (url sig) {} : {}", resu, why);
+                                log::warn!("Error decoding (url sig) {} : {}", resu, why);
                                 resu
                             }
                         };
@@ -358,7 +355,7 @@ impl YtVideoPage {
                     let resu = match urlencoding::decode(url) {
                         Ok(u) => u.into_owned(),
                         Err(why) => {
-                            warn!("Error decoding {} : {}", url, why);
+                            log::warn!("Error decoding {} : {}", url, why);
                             url.to_string()
                         }
                     };
@@ -373,10 +370,10 @@ impl YtVideoPage {
         let mut urls = Vec::new();
         for v in arr.iter() {
             match v.get("itag") {
-                None => warn!("No itag in value : {}", v),
+                None => log::warn!("No itag in value : {}", v),
                 Some(v_itag) => {
                     match v_itag.as_u64() {
-                        None => warn!("Error converting itag to u64 : {}", v_itag),
+                        None => log::warn!("Error converting itag to u64 : {}", v_itag),
                         Some(itag) => {
                             // See : https://gist.github.com/sidneys/7095afe4da4ae58694d128b1034e01e2
                             // or : https://tyrrrz.me/blog/reverse-engineering-youtube/
@@ -384,7 +381,7 @@ impl YtVideoPage {
                             // webm : 171 | 172 | 249 | 250 | 251
                             if AUDIO_ITAGS.contains(&(itag as u32)) {
                                 match self.get_url(v) {
-                                    Err(why) => warn!("{}", why),
+                                    Err(why) => log::warn!("{}", why),
                                     Ok(yt_audio_data) => urls.push(yt_audio_data),
                                 }
                             }
@@ -406,7 +403,7 @@ impl YtVideoPage {
         }
         match self.yt_video_data.yt_response_data.get("streamingData") {
             None => {
-                warn!(
+                log::warn!(
                     "No streamingData found in : {}",
                     self.yt_video_data.yt_response_data
                 );
@@ -415,12 +412,12 @@ impl YtVideoPage {
             Some(sd) => {
                 let mut v1 = match sd.get("adaptiveFormats") {
                     None => {
-                        info!("No adaptiveFormats in streamingData");
+                        log::info!("No adaptiveFormats in streamingData");
                         Vec::new()
                     }
                     Some(af) => match af.as_array() {
                         None => {
-                            warn!("Error converting adaptiveFormats to array");
+                            log::warn!("Error converting adaptiveFormats to array");
                             Vec::new()
                         }
                         Some(arr) => self.get_urls(arr),
@@ -428,12 +425,12 @@ impl YtVideoPage {
                 };
                 let mut v2 = match sd.get("formats") {
                     None => {
-                        info!("No formats in streamingData");
+                        log::info!("No formats in streamingData");
                         Vec::new()
                     }
                     Some(f) => match f.as_array() {
                         None => {
-                            warn!("Error converting formats to array");
+                            log::warn!("Error converting formats to array");
                             Vec::new()
                         }
                         Some(arr) => self.get_urls(arr),
