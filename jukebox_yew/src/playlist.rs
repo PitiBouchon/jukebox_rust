@@ -23,7 +23,7 @@ pub enum PlaylistAction {
 pub struct PlaylistProp {
     pub id: String,
     pub playlist: Vec<Video>,
-    pub callback: PlaylistAction,
+    pub callbacks: Vec<PlaylistAction>,
 }
 
 #[function_component(Playlist)]
@@ -38,7 +38,12 @@ pub fn playlist(props: &PlaylistProp) -> Html {
                                 { "Title : "}{ v.title.clone() }{ v.id.clone() }
                             </p>
                             <img src={ v.thumbnail.clone() } width=600 height=400 />
-                            <Button info={ v.clone() } callback={ props.callback.clone() } index={ i } />
+                            {
+                                props.callbacks.clone().iter().map(|c| html! {
+                                    <Button info={ v.clone() } index={ i } callback={ c.clone() }/>
+                                }).collect::<Html>()
+                            }
+                            // <Button info={ v.clone() } callback={ props.callback.clone() } index={ i } />
                         </div>
                     </li>
                 }).collect::<Html>()
@@ -55,7 +60,7 @@ pub struct ButtonProp {
 }
 
 #[function_component(Button)]
-fn button(props: &ButtonProp) -> Html {
+pub fn button(props: &ButtonProp) -> Html {
     let info = props.info.clone();
     let index = props.index;
     let (callback, text) = match props.callback.clone() {

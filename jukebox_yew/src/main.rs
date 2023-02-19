@@ -168,7 +168,7 @@ impl Component for PlayListHtml {
         let cb_remove = PlaylistAction::Remove(Callback::from(
             move |(video_index, video_id): (usize, String)| {
                 log::debug!("Removing id: {}", video_id);
-                let _ = sender.send_now(NetData::Remove(video_index, video_id.to_string()));
+                let _ = sender.send_now(NetData::Remove(video_index, video_id));
             },
         ));
 
@@ -232,9 +232,9 @@ impl Component for PlayListHtml {
                         {oninput}
                 />
                 <h2>{"Playlist :"}</h2>
-                <playlist::Playlist id={"videos"} playlist={ self.playlist.clone() } callback={ cb_remove } />
+                <playlist::Playlist id={"videos"} playlist={ self.playlist.clone() } callbacks={ vec![cb_remove] } />
                 <h2>{ "Searched :" }</h2>
-                <playlist::Playlist id={"search"} playlist={ self.search_videos.clone() } callback={ cb_add } />
+                <playlist::Playlist id={"search"} playlist={ self.search_videos.clone() } callbacks={ vec![cb_add] } />
             </main>
         }
     }
