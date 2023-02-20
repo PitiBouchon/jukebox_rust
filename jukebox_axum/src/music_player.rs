@@ -43,13 +43,15 @@ pub fn music_player(mut rx: UnboundedReceiver<MusicPlayerMessage>, app_state: Ar
                                     pipeline.set_property("volume", volume);
                                 }
                                 MusicPlayerMessage::AddMusic(video) => {
-                                    let uri = my_youtube_extractor::get_best_audio(&video.id).await.unwrap().url;
-                                    if music_player_playlist.is_empty() {
-                                        log::info!("Playing music: {}", uri);
-                                        pipeline.set_property("uri", uri.clone());
-                                        pipeline.set_state(State::Playing).unwrap();
+                                    if let Ok(video_data) = my_youtube_extractor::get_best_audio(&video.id).await {
+                                        let uri = video_data.url;
+                                        if music_player_playlist.is_empty() {
+                                            log::info!("Playing music: {}", uri);
+                                            pipeline.set_property("uri", uri.clone());
+                                            pipeline.set_state(State::Playing).unwrap();
+                                        }
+                                        music_player_playlist.push((video.id, uri));
                                     }
-                                    music_player_playlist.push((video.id, uri));
                                 }
                                 MusicPlayerMessage::RemoveVideo(index, video_id) => {
                                     if let Some((local_video_id, _)) = music_player_playlist.first() && local_video_id == &video_id {
