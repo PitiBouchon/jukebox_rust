@@ -47,6 +47,7 @@ pub fn music_player(mut rx: UnboundedReceiver<MusicPlayerMessage>, app_state: Ar
                                         let uri = video_data.url;
                                         if music_player_playlist.is_empty() {
                                             log::info!("Playing music: {}", uri);
+                                            pipeline.set_state(State::Null).unwrap();
                                             pipeline.set_property("uri", uri.clone());
                                             pipeline.set_state(State::Playing).unwrap();
                                         }
@@ -58,7 +59,8 @@ pub fn music_player(mut rx: UnboundedReceiver<MusicPlayerMessage>, app_state: Ar
                                         music_player_playlist.remove(index);
                                         if index == 0 {
                                             if let Some((_, uri)) = music_player_playlist.first() {
-                                                log::info!("Playing music: {}", uri);
+                                                log::info!("Playing music after remove: {}", uri);
+                                                pipeline.set_state(State::Null).unwrap();
                                                 pipeline.set_property("uri", uri.clone());
                                                 pipeline.set_state(State::Playing).unwrap();
                                             }
@@ -90,6 +92,7 @@ pub fn music_player(mut rx: UnboundedReceiver<MusicPlayerMessage>, app_state: Ar
                                     app_state.tx.send(NetData::Next).unwrap();
                                     if let Some((_, uri)) = music_player_playlist.first() {
                                         log::info!("Playing music: {}", uri);
+                                        pipeline.set_state(State::Null).unwrap();
                                         pipeline.set_property("uri", uri.clone());
                                         pipeline.set_state(State::Playing).unwrap();
                                     }
