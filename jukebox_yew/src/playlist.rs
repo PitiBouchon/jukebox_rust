@@ -7,6 +7,9 @@ pub enum PlayListMsg {
     List(Vec<Video>),
     Remove(usize, String), // Index and id of the video
     Add(Video),
+    MoveUp(usize, String), // Index and id of the video
+    MoveDown(usize, String), // Index and id of the video
+    Move(usize, String, i32), // Index | Video id | Delta of the move in the playlist
     Play,
     Pause,
     Next,
@@ -17,6 +20,8 @@ pub enum PlayListMsg {
 pub enum PlaylistAction {
     Add(Callback<Video>),
     Remove(Callback<(usize, String)>),
+    MoveUp(Callback<(usize, String)>),
+    MoveDown(Callback<(usize, String)>),
 }
 
 #[derive(Properties, PartialEq)]
@@ -71,6 +76,14 @@ pub fn button(props: &ButtonProp) -> Html {
         PlaylistAction::Remove(cb) => (
             Callback::from(move |_| cb.clone().emit((index, info.id.clone()))),
             "Remove",
+        ),
+        PlaylistAction::MoveUp(cb) => (
+            Callback::from(move |_| cb.clone().emit((index, info.id.clone()))),
+            "MoveUp"
+        ),
+        PlaylistAction::MoveDown(cb) => (
+            Callback::from(move |_| cb.clone().emit((index, info.id.clone()))),
+            "MoveDown"
         ),
     };
     html! {<button onclick={ callback.clone() }>{ text }</button>}

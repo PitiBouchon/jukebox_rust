@@ -27,6 +27,7 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
 
     let mut recv_user_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = receiver.next().await {
+            log::debug!("Received a message !");
             match msg {
                 Message::Binary(data) => match NetData::decode_message(data.as_slice()) {
                     Ok(msg) => match msg {
@@ -50,18 +51,6 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
                                 .music_player_tx
                                 .send(MusicPlayerMessage::AddMusic(video.clone()))
                                 .unwrap();
-                            // let mpv_player = state.mpv.lock().await;
-                            // mpv_player
-                            //     .playlist_load_files(&[(
-                            //         &format!("https://www.youtube.com/watch?v={}", video.id),
-                            //         if playlist.len() == 1 {
-                            //             FileState::AppendPlay
-                            //         } else {
-                            //             FileState::Append
-                            //         },
-                            //         Some("--vid=no"),
-                            //     )])
-                            //     .expect("Cannot play MPV Player");
                             state.tx.send(NetData::Add(video)).unwrap();
                         }
                         NetData::Search(search_txt) => {
@@ -85,10 +74,19 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>) {
                                     .unwrap(),
                             }
                         }
+                        NetData::Move(index, video_id, delta) => {
+                            let mut playlist = state.list.lock().await;
+                            if index as i32 + delta >= 0 && index as i32 + delta < playlist.len() as i32 && let Some(video) = playlist.get(index) && video.id == video_id {
+                                playlist.swap(index, (index as i32 + delta) as usize);
+                                state
+                                    .music_player_tx
+                                    .send(MusicPlayerMessage::Move(index, video_id.clone(), delta))
+                                    .unwrap();
+                                state.tx.send(NetData::Move(index, video_id, delta)).unwrap();
+                            }
+                        }
                         NetData::Play => {
                             log::debug!("Play video");
-                            // let mpv_player = state.mpv.lock().await;
-                            // mpv_player.unpause().unwrap();
                             state
                                 .music_player_tx
                                 .send(MusicPlayerMessage::Play)

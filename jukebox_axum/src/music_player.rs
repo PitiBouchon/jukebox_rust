@@ -13,6 +13,7 @@ pub enum MusicPlayerMessage {
     SetVolume(f64),
     AddMusic(video::Model),     // (video, APPEND_PLAY)
     RemoveVideo(usize, String), // Index and Id of the video in the playlist
+    Move(usize, String, i32),
     Play,
     Pause,
 }
@@ -25,14 +26,14 @@ pub fn music_player(mut rx: UnboundedReceiver<MusicPlayerMessage>, app_state: Ar
     gstreamer::init().expect("gstreamer initialization failed");
 
     // Used to play music
-    let pipeline = gstreamer::parse_launch(&format!("playbin")).unwrap();
+    let pipeline = gstreamer::parse_launch("playbin").unwrap();
     // Used to receive events of the pipeline
     let bus = pipeline.bus().unwrap();
 
     // Spawn a new thread with tokio so that is have a tokio reactor (std::thread::spawn will not work here)
     tokio::task::spawn_blocking(move || {
         ctx.spawn_local(async move {
-            let mut music_player_playlist: Vec<(String, String)> = vec![];
+            let mut music_player_playlist: Vec<(String, String)> = vec![]; // Id of the video | Uri of the music
             let mut messages = bus.stream();
             loop {
                 tokio::select! {
@@ -73,6 +74,18 @@ pub fn music_player(mut rx: UnboundedReceiver<MusicPlayerMessage>, app_state: Ar
                                         log::error!("Trying to remove a video that is not in the playlist");
                                     }
                                 }
+                                MusicPlayerMessage::Move(index, video_id, delta) => {
+                                    if index as i32 + delta >= 0 && index as i32 + delta < music_player_playlist.len() as i32 && let Some((loval_video_id, _)) = music_player_playlist.get(index) && loval_video_id == &video_id {
+                                        music_player_playlist.swap(index, (index as i32 + delta) as usize);
+                                        if index == 0 || (index as i32 + delta) as usize == 0 {
+                                            if let Some((_, uri)) = music_player_playlist.first() {
+                                                pipeline.set_state(State::Null).unwrap();
+                                                pipeline.set_property("uri", uri.clone());
+                                                pipeline.set_state(State::Playing).unwrap();
+                                            }
+                                        }
+                                    }
+                                }
                                 MusicPlayerMessage::Play => {
                                     pipeline.set_state(State::Playing).unwrap();
                                 }
@@ -84,23 +97,20 @@ pub fn music_player(mut rx: UnboundedReceiver<MusicPlayerMessage>, app_state: Ar
                     }
                     msg2_opt = messages.next() => {
                         if let Some(msg) = msg2_opt {
-                            match msg.view() {
-                                MessageView::Eos(..) => {
-                                    let mut playlist_axum = app_state.list.lock().await;
-                                    music_player_playlist.remove(0);
-                                    playlist_axum.remove(0);
-                                    app_state.tx.send(NetData::Next).unwrap();
-                                    if let Some((_, uri)) = music_player_playlist.first() {
-                                        log::info!("Playing music: {}", uri);
-                                        pipeline.set_state(State::Null).unwrap();
-                                        pipeline.set_property("uri", uri.clone());
-                                        pipeline.set_state(State::Playing).unwrap();
-                                    }
-                                    else {
-                                        pipeline.set_state(State::Null).unwrap();
-                                    }
-                               }
-                                _ => ()
+                            if let MessageView::Eos(..) = msg.view() { // TODO : Maybe other messages are useful
+                                 let mut playlist_axum = app_state.list.lock().await;
+                                 music_player_playlist.remove(0);
+                                 playlist_axum.remove(0);
+                                 app_state.tx.send(NetData::Next).unwrap();
+                                 if let Some((_, uri)) = music_player_playlist.first() {
+                                     log::info!("Playing music: {}", uri);
+                                     pipeline.set_state(State::Null).unwrap();
+                                     pipeline.set_property("uri", uri.clone());
+                                     pipeline.set_state(State::Playing).unwrap();
+                                 }
+                                 else {
+                                     pipeline.set_state(State::Null).unwrap();
+                                 }
                             }
                         }
                     }

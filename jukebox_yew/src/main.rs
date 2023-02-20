@@ -1,3 +1,5 @@
+#![feature(let_chains)]
+
 use entity::video::Model as Video;
 use futures::{SinkExt, StreamExt};
 use gloo::net::http::Request;
@@ -86,6 +88,10 @@ impl Component for PlayListHtml {
                                     log::info!("Video Passed");
                                     link.send_message(PlayListMsg::Next);
                                 }
+                                NetData::Move(index, video_id, delta) => {
+                                    log::info!("Video move from {} to {}", index, index as i32 + delta);
+                                    link.send_message(PlayListMsg::Move(index, video_id, delta));
+                                }
                                 _ => {}
                             },
                             Err(err) => log::error!("Error parsing data {err}"),
@@ -119,7 +125,7 @@ impl Component for PlayListHtml {
                 if let Err(err) = self.send.send_now(NetData::Search(data)) {
                     log::error!("Can't send data to MPSC channel: {err}");
                 }
-                true
+                false
             }
             PlayListMsg::Remove(index, video_id) => {
                 if let Some(video) = self.playlist.get(index) {
@@ -136,17 +142,38 @@ impl Component for PlayListHtml {
                 self.playlist.push(video);
                 true
             }
+            PlayListMsg::Move(index, video_id, delta) => {
+                if index as i32 + delta >= 0 && index as i32 + delta < self.playlist.len() as i32 && let Some(video) = self.playlist.get(index) && video.id == video_id {
+                    self.playlist.swap(index, (index as i32 + delta) as usize);
+                    true
+                }
+                else {
+                    false
+                }
+            }
+            PlayListMsg::MoveUp(index, video_id) => {
+                if let Err(err) = self.send.send_now(NetData::Move(index, video_id, -1)) {
+                    log::error!("Can't send data to MPSC channel: {err}");
+                }
+                false
+            }
+            PlayListMsg::MoveDown(index, video_id) => {
+                if let Err(err) = self.send.send_now(NetData::Move(index, video_id, 1)) {
+                    log::error!("Can't send data to MPSC channel: {err}");
+                }
+                false
+            }
             PlayListMsg::Play => {
                 if let Err(err) = self.send.send_now(NetData::Play) {
                     log::error!("Can't send data to MPSC channel: {err}");
                 }
-                true
+                false
             }
             PlayListMsg::Pause => {
                 if let Err(err) = self.send.send_now(NetData::Pause) {
                     log::error!("Can't send data to MPSC channel: {err}");
                 }
-                true
+                false
             }
             PlayListMsg::Next => {
                 if !self.playlist.is_empty() {
@@ -176,6 +203,22 @@ impl Component for PlayListHtml {
         let cb_add = PlaylistAction::Add(Callback::from(move |video: Video| {
             let _ = sender.send_now(NetData::Add(video));
         }));
+
+        let sender = self.send.clone();
+        let cb_move_up = PlaylistAction::MoveUp(Callback::from(
+            move |(video_index, video_id): (usize, String)| {
+                log::debug!("Move up: {}", video_id);
+                let _ = sender.send_now(NetData::Move(video_index, video_id, -1));
+            },
+        ));
+
+        let sender = self.send.clone();
+        let cb_move_down = PlaylistAction::MoveDown(Callback::from(
+            move |(video_index, video_id): (usize, String)| {
+                log::debug!("Move up: {}", video_id);
+                let _ = sender.send_now(NetData::Move(video_index, video_id, 1));
+            },
+        ));
 
         let sender = self.send.clone();
         let cb_play = Callback::from(move |_| {
@@ -232,7 +275,7 @@ impl Component for PlayListHtml {
                         {oninput}
                 />
                 <h2>{"Playlist :"}</h2>
-                <playlist::Playlist id={"videos"} playlist={ self.playlist.clone() } callbacks={ vec![cb_remove] } />
+                <playlist::Playlist id={"videos"} playlist={ self.playlist.clone() } callbacks={ vec![cb_remove, cb_move_up, cb_move_down] } />
                 <h2>{ "Searched :" }</h2>
                 <playlist::Playlist id={"search"} playlist={ self.search_videos.clone() } callbacks={ vec![cb_add] } />
             </main>

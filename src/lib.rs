@@ -12,6 +12,7 @@ pub enum NetData {
     Pause,
     Next,
     SetVolume(f64),
+    Move(usize, String, i32), // Index | Video id | Delta of the move
 }
 
 impl NetData {
