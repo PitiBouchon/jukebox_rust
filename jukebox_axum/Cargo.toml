@@ -18,7 +18,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tower-http = { version = "0.3", features = ["full"] }
 tower = "0.4"
-jukebox_rust = { path = "..", features = ["axum"] }
+jukebox_rust = { path = ".." }
 anyhow = "1.0"
 jsonwebtoken = "8.2"
 once_cell = "1.17"

@@ -10,5 +10,5 @@ members = [".", "jukebox_axum", "jukebox_yew", "my_youtube_extractor", "entity"]
 entity = { path = "./entity", features = ["video"] }
 serde = { version = "1.0", features = ["derive"] }
 bincode = "2.0.0-rc.2"
-axum = { version = "0.6", features = ["ws"], optional = true }
+#axum = { version = "0.6", features = ["ws"], optional = true }
 anyhow = "1.0.*"
