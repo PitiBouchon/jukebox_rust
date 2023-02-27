@@ -41,7 +41,7 @@ pub fn music_player(mut rx: UnboundedReceiver<MusicPlayerMessage>, app_state: Ar
                         if let Some(msg) = msg1_opt {
                             match msg {
                                 MusicPlayerMessage::SetVolume(volume) => {
-                                    pipeline.set_property("volume", volume);
+                                    pipeline.set_property("volume", (volume / 100.0).clamp(0.0, 1.0));
                                 }
                                 MusicPlayerMessage::AddMusic(video) => {
                                     if let Ok(video_data) = my_youtube_extractor::get_best_audio(&video.id).await {
